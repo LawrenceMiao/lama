@@ -25,6 +25,8 @@ from saicinpainting.evaluation.data import (
     OurInpaintingDataset as OurInpaintingEvaluationDataset,
     ceil_modulo,
     InpaintingEvalOnlineDataset,
+    pad_img_to_modulo,
+    scale_image,
 )
 from saicinpainting.training.data.aug import IAAAffine2, IAAPerspective2
 from saicinpainting.training.data.masks import get_mask_generator
@@ -133,7 +135,9 @@ class MultiChannelInpaintingTrainDataset(Dataset):
     def __init__(self, indir, mask_generator, transform, n_channels=8):
         self.in_files = list(
             glob.glob(os.path.join(indir, "**", "*.tif"), recursive=True)
-        ) + list(glob.glob(os.path.join(indir, "**", "*.png"), recursive=True))
+        ) + list(glob.glob(os.path.join(indir, "**", "*.png"), recursive=True)) + list(
+            glob.glob(os.path.join(indir, "**", "*.npy"), recursive=True)
+        )
         self.mask_generator = mask_generator
         self.transform = transform
         self.iter_i = 0
@@ -181,6 +185,81 @@ class MultiChannelInpaintingTrainDataset(Dataset):
         self.iter_i += 1
 
         return dict(image=img, mask=mask)
+
+
+class MultiChannelInpaintingEvalDataset(Dataset):
+    """Validation dataset for multi-channel inpainting with precomputed masks."""
+
+    def __init__(
+        self,
+        datadir,
+        img_suffix=".npy",
+        n_channels=8,
+        pad_out_to_modulo=None,
+        scale_factor=None,
+        **kwargs,
+    ):
+        self.datadir = datadir
+        self.img_suffix = img_suffix
+        self.n_channels = n_channels
+        self.pad_out_to_modulo = pad_out_to_modulo
+        self.scale_factor = scale_factor
+        self.mask_filenames = sorted(
+            list(
+                glob.glob(
+                    os.path.join(self.datadir, "**", "*mask*.png"), recursive=True
+                )
+            )
+        )
+        self.img_filenames = [
+            fname.rsplit("_mask", 1)[0] + self.img_suffix for fname in self.mask_filenames
+        ]
+
+    def __len__(self):
+        return len(self.mask_filenames)
+
+    def _load_multichannel_image(self, path):
+        if path.endswith(".npy"):
+            img = np.load(path)
+        else:
+            img = cv2.imread(path, cv2.IMREAD_UNCHANGED)
+
+        if img.ndim == 2:
+            img = np.stack([img] * self.n_channels, axis=-1)
+        elif img.shape[2] != self.n_channels:
+            if img.shape[2] > self.n_channels:
+                img = img[:, :, : self.n_channels]
+            else:
+                pad = self.n_channels - img.shape[2]
+                img = np.pad(img, ((0, 0), (0, 0), (0, pad)), mode="constant")
+
+        if img.dtype != np.float32:
+            img = (
+                img.astype(np.float32) / 255.0
+                if np.max(img) > 1
+                else img.astype(np.float32)
+            )
+        return np.transpose(img, (2, 0, 1))
+
+    def __getitem__(self, i):
+        image = self._load_multichannel_image(self.img_filenames[i])
+        mask = cv2.imread(self.mask_filenames[i], cv2.IMREAD_GRAYSCALE).astype(np.float32)
+        if np.max(mask) > 1:
+            mask /= 255.0
+        result = dict(image=image, mask=mask[None, ...])
+
+        if self.scale_factor is not None:
+            result["image"] = scale_image(result["image"], self.scale_factor)
+            result["mask"] = scale_image(
+                result["mask"], self.scale_factor, interpolation=cv2.INTER_NEAREST
+            )
+
+        if self.pad_out_to_modulo is not None and self.pad_out_to_modulo > 1:
+            result["unpad_to_size"] = result["image"].shape[1:]
+            result["image"] = pad_img_to_modulo(result["image"], self.pad_out_to_modulo)
+            result["mask"] = pad_img_to_modulo(result["mask"], self.pad_out_to_modulo)
+
+        return result
 
 
 def get_transforms(transform_variant, out_size):
@@ -413,6 +492,11 @@ def make_default_val_dataset(
             mask_generator=mask_generator,
             transform=transform,
             out_size=out_size,
+            **kwargs,
+        )
+    elif kind == "multichannel":
+        dataset = MultiChannelInpaintingEvalDataset(
+            datadir=indir,
             **kwargs,
         )
     else:
