@@ -133,10 +133,10 @@ class MultiChannelInpaintingTrainDataset(Dataset):
     """Dataset for multi-channel satellite/hyperspectral images"""
 
     def __init__(self, indir, mask_generator, transform, n_channels=8):
-        self.in_files = list(
-            glob.glob(os.path.join(indir, "**", "*.tif"), recursive=True)
-        ) + list(glob.glob(os.path.join(indir, "**", "*.png"), recursive=True)) + list(
-            glob.glob(os.path.join(indir, "**", "*.npy"), recursive=True)
+        self.in_files = (
+            list(glob.glob(os.path.join(indir, "**", "*.tif"), recursive=True))
+            + list(glob.glob(os.path.join(indir, "**", "*.png"), recursive=True))
+            + list(glob.glob(os.path.join(indir, "**", "*.npy"), recursive=True))
         )
         self.mask_generator = mask_generator
         self.transform = transform
@@ -212,7 +212,8 @@ class MultiChannelInpaintingEvalDataset(Dataset):
             )
         )
         self.img_filenames = [
-            fname.rsplit("_mask", 1)[0] + self.img_suffix for fname in self.mask_filenames
+            fname.rsplit("_mask", 1)[0] + self.img_suffix
+            for fname in self.mask_filenames
         ]
 
     def __len__(self):
@@ -243,7 +244,9 @@ class MultiChannelInpaintingEvalDataset(Dataset):
 
     def __getitem__(self, i):
         image = self._load_multichannel_image(self.img_filenames[i])
-        mask = cv2.imread(self.mask_filenames[i], cv2.IMREAD_GRAYSCALE).astype(np.float32)
+        mask = cv2.imread(self.mask_filenames[i], cv2.IMREAD_GRAYSCALE).astype(
+            np.float32
+        )
         if np.max(mask) > 1:
             mask /= 255.0
         result = dict(image=image, mask=mask[None, ...])
