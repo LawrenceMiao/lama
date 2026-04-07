@@ -1,35 +1,30 @@
-run_title: ""
+# configs/training/lama-fourier-satellite.yaml
+run_title: "LaMa FFC for 8-channel satellites"
 
 training_model:
   kind: default
-  visualize_each_iters: 1000
   concat_mask: true
-  store_discr_outputs_for_vis: true
+
 losses:
   l1:
     weight_missing: 10
     weight_known: 10
   perceptual:
-    weight: 0
+    weight: 0 # Disabled for multi-channel
   adversarial:
     kind: r1
     weight: 10
-    gp_coef: 0.001
-    mask_as_fake_target: true
-    allow_scale_mask: true
   feature_matching:
     weight: 100
   resnet_pl:
-    weight: 30
-    weights_path: ${env:TORCH_HOME}
+    weight: 0 # Disabled for multi-channel
 
 defaults:
-  - location: docker
-  - data: abl-04-256-mh-dist
-  - generator: ffc_resnet_075
-  - discriminator: pix2pixhd_nlayer
+  - location: my_location
+  - data: satellite_256 # Use new satellite config
+  - generator: ffc_resnet_satellite
+  - discriminator: nlayer_satellite
   - optimizers: default_optimizers
   - visualizer: directory
   - evaluator: default_inpainted
   - trainer: any_gpu_large_ssim_ddp_final
-  - hydra: overrides

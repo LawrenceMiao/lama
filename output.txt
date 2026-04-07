@@ -1,0 +1,733 @@
+Detectron v2 is not installed
+1
+[2026-04-03 02:51:26,902][saicinpainting.utils][WARNING] - Setting signal 10 handler <function print_traceback_handler at 0x7f62e78f1268>
+2
+3
+[2026-04-03 02:51:26,915][__main__][INFO] - location:
+  data_root_dir: ./scratch/my_dataset/
+  out_root_dir: ./scratch/lama_experiments/
+  tb_dir: ./scratch/lama_experiments/tb_logs/
+  pretrained_models: ${env:TORCH_HOME,./scratch/lama_models/}
+data:
+  batch_size: 8
+  val_batch_size: 4
+  num_workers: 4
+  train:
+    indir: ${location.data_root_dir}/train
+    out_size: 256
+    kind: multichannel
+    n_channels: 8
+    img_suffix: .npy
+    mask_gen_kwargs:
+      irregular_proba: 1/3
+      irregular_kwargs:
+        max_angle: 4
+        max_len: 200
+        max_width: 100
+        max_times: 5
+        min_times: 1
+      box_proba: 1/3
+      box_kwargs:
+        margin: 10
+        bbox_min_size: 30
+        bbox_max_size: 150
+        max_times: 4
+        min_times: 1
+      segm_proba: 1/3
+      segm_kwargs:
+        confidence_threshold: 0.5
+    transform_variant: light_distortions
+    dataloader_kwargs:
+      batch_size: ${data.batch_size}
+      shuffle: true
+      num_workers: ${data.num_workers}
+      pin_memory: true
+  val:
+    indir: ${location.data_root_dir}/val
+    kind: multichannel
+    n_channels: 8
+    out_size: 256
+    img_suffix: .npy
+    dataloader_kwargs:
+      batch_size: ${data.val_batch_size}
+      shuffle: false
+      num_workers: ${data.num_workers}
+  visual_test:
+    indir: ${location.data_root_dir}/visual_test
+    kind: multichannel
+    n_channels: 8
+    img_suffix: .npy
+    dataloader_kwargs:
+      batch_size: ${data.val_batch_size}
+      shuffle: false
+      num_workers: ${data.num_workers}
+  eval:
+    indir: ${location.data_root_dir}/eval
+    kind: multichannel
+    n_channels: 8
+    img_suffix: .npy
+    dataloader_kwargs:
+      batch_size: ${data.val_batch_size}
+      shuffle: false
+      num_workers: ${data.num_workers}
+generator:
+  kind: ffc_resnet
+  input_nc: 9
+  output_nc: 8
+  ngf: 64
+  n_downsampling: 3
+  n_blocks: 9
+  add_out_act: sigmoid
+  init_conv_kwargs:
+    ratio_gin: 0
+    ratio_gout: 0
+    enable_lfu: false
+  downsample_conv_kwargs:
+    ratio_gin: 0
+    ratio_gout: 0
+    enable_lfu: false
+  resnet_conv_kwargs:
+    ratio_gin: 0.75
+    ratio_gout: 0.75
+    enable_lfu: false
+discriminator:
+  kind: pix2pixhd_nlayer
+  input_nc: 8
+  ndf: 64
+  n_layers: 4
+optimizers:
+  generator:
+    kind: adam
+    lr: 0.001
+  discriminator:
+    kind: adam
+    lr: 0.0001
+visualizer:
+  kind: directory
+  outdir: /mnt/c/coding/lama/outputs/2026-04-03/02-51-26/samples
+  key_order:
+  - image
+  - predicted_image
+  - discr_output_fake
+  - discr_output_real
+  - inpainted
+  rescale_keys:
+  - discr_output_fake
+  - discr_output_real
+evaluator:
+  kind: default
+  inpainted_key: inpainted
+  integral_kind: ssim_fid100_f1
+trainer:
+  kwargs:
+    gpus: -1
+    accelerator: ddp
+    max_epochs: 100
+    gradient_clip_val: 1
+    log_gpu_memory: None
+    limit_train_batches: 25000
+    val_check_interval: ${trainer.kwargs.limit_train_batches}
+    log_every_n_steps: 250
+    precision: 32
+    terminate_on_nan: false
+    check_val_every_n_epoch: 1
+    num_sanity_val_steps: 8
+    replace_sampler_ddp: false
+  checkpoint_kwargs:
+    verbose: true
+    save_top_k: 5
+    save_last: true
+    period: 1
+    monitor: val_ssim_fid100_f1_total_mean
+    mode: max
+run_title: LaMa FFC for 8-channel satellites
+training_model:
+  kind: default
+  concat_mask: true
+losses:
+  l1:
+    weight_missing: 10
+    weight_known: 10
+  perceptual:
+    weight: 0
+  adversarial:
+    kind: r1
+    weight: 10
+  feature_matching:
+    weight: 100
+  resnet_pl:
+    weight: 0
+
+4
+5
+6
+[2026-04-03 02:51:27,128][root][INFO] - Make training model default
+[2026-04-03 02:51:27,130][saicinpainting.training.trainers.base][INFO] - BaseInpaintingTrainingModule init called
+[2026-04-03 02:51:27,134][root][INFO] - Make generator ffc_resnet
+[2026-04-03 02:51:27,407][saicinpainting.training.trainers.base][INFO] - Generator
+FFCResNetGenerator(
+  (model): Sequential(
+    (0): ReflectionPad2d((3, 3, 3, 3))
+    (1): FFC_BN_ACT(
+      (ffc): FFC(
+        (convl2l): Conv2d(9, 64, kernel_size=(7, 7), stride=(1, 1), bias=False, padding_mode=reflect)
+        (convl2g): Identity()
+        (convg2l): Identity()
+        (convg2g): Identity()
+        (gate): Identity()
+      )
+      (bn_l): BatchNorm2d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+      (bn_g): Identity()
+      (act_l): ReLU(inplace=True)
+      (act_g): Identity()
+    )
+    (2): FFC_BN_ACT(
+      (ffc): FFC(
+        (convl2l): Conv2d(64, 128, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1), bias=False, padding_mode=reflect)
+        (convl2g): Identity()
+        (convg2l): Identity()
+        (convg2g): Identity()
+        (gate): Identity()
+      )
+      (bn_l): BatchNorm2d(128, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+      (bn_g): Identity()
+      (act_l): ReLU(inplace=True)
+      (act_g): Identity()
+    )
+    (3): FFC_BN_ACT(
+      (ffc): FFC(
+        (convl2l): Conv2d(128, 256, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1), bias=False, padding_mode=reflect)
+        (convl2g): Identity()
+        (convg2l): Identity()
+        (convg2g): Identity()
+        (gate): Identity()
+      )
+      (bn_l): BatchNorm2d(256, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+      (bn_g): Identity()
+      (act_l): ReLU(inplace=True)
+      (act_g): Identity()
+    )
+    (4): FFC_BN_ACT(
+      (ffc): FFC(
+        (convl2l): Conv2d(256, 128, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1), bias=False, padding_mode=reflect)
+        (convl2g): Conv2d(256, 384, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1), bias=False, padding_mode=reflect)
+        (convg2l): Identity()
+        (convg2g): Identity()
+        (gate): Identity()
+      )
+      (bn_l): BatchNorm2d(128, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+      (bn_g): BatchNorm2d(384, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+      (act_l): ReLU(inplace=True)
+      (act_g): ReLU(inplace=True)
+    )
+    (5): FFCResnetBlock(
+      (conv1): FFC_BN_ACT(
+        (ffc): FFC(
+          (convl2l): Conv2d(128, 128, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False, padding_mode=reflect)
+          (convl2g): Conv2d(128, 384, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False, padding_mode=reflect)
+          (convg2l): Conv2d(384, 128, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False, padding_mode=reflect)
+          (convg2g): SpectralTransform(
+            (downsample): Identity()
+            (conv1): Sequential(
+              (0): Conv2d(384, 192, kernel_size=(1, 1), stride=(1, 1), bias=False)
+              (1): BatchNorm2d(192, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+              (2): ReLU(inplace=True)
+            )
+            (fu): FourierUnit(
+              (conv_layer): Conv2d(384, 384, kernel_size=(1, 1), stride=(1, 1), bias=False)
+              (bn): BatchNorm2d(384, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+              (relu): ReLU(inplace=True)
+            )
+            (conv2): Conv2d(192, 384, kernel_size=(1, 1), stride=(1, 1), bias=False)
+          )
+          (gate): Identity()
+        )
+        (bn_l): BatchNorm2d(128, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        (bn_g): BatchNorm2d(384, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        (act_l): ReLU(inplace=True)
+        (act_g): ReLU(inplace=True)
+      )
+      (conv2): FFC_BN_ACT(
+        (ffc): FFC(
+          (convl2l): Conv2d(128, 128, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False, padding_mode=reflect)
+          (convl2g): Conv2d(128, 384, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False, padding_mode=reflect)
+          (convg2l): Conv2d(384, 128, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False, padding_mode=reflect)
+          (convg2g): SpectralTransform(
+            (downsample): Identity()
+            (conv1): Sequential(
+              (0): Conv2d(384, 192, kernel_size=(1, 1), stride=(1, 1), bias=False)
+              (1): BatchNorm2d(192, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+              (2): ReLU(inplace=True)
+            )
+            (fu): FourierUnit(
+              (conv_layer): Conv2d(384, 384, kernel_size=(1, 1), stride=(1, 1), bias=False)
+              (bn): BatchNorm2d(384, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+              (relu): ReLU(inplace=True)
+            )
+            (conv2): Conv2d(192, 384, kernel_size=(1, 1), stride=(1, 1), bias=False)
+          )
+          (gate): Identity()
+        )
+        (bn_l): BatchNorm2d(128, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        (bn_g): BatchNorm2d(384, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        (act_l): ReLU(inplace=True)
+        (act_g): ReLU(inplace=True)
+      )
+    )
+    (6): FFCResnetBlock(
+      (conv1): FFC_BN_ACT(
+        (ffc): FFC(
+          (convl2l): Conv2d(128, 128, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False, padding_mode=reflect)
+          (convl2g): Conv2d(128, 384, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False, padding_mode=reflect)
+          (convg2l): Conv2d(384, 128, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False, padding_mode=reflect)
+          (convg2g): SpectralTransform(
+            (downsample): Identity()
+            (conv1): Sequential(
+              (0): Conv2d(384, 192, kernel_size=(1, 1), stride=(1, 1), bias=False)
+              (1): BatchNorm2d(192, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+              (2): ReLU(inplace=True)
+            )
+            (fu): FourierUnit(
+              (conv_layer): Conv2d(384, 384, kernel_size=(1, 1), stride=(1, 1), bias=False)
+              (bn): BatchNorm2d(384, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+              (relu): ReLU(inplace=True)
+            )
+            (conv2): Conv2d(192, 384, kernel_size=(1, 1), stride=(1, 1), bias=False)
+          )
+          (gate): Identity()
+        )
+        (bn_l): BatchNorm2d(128, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        (bn_g): BatchNorm2d(384, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        (act_l): ReLU(inplace=True)
+        (act_g): ReLU(inplace=True)
+      )
+      (conv2): FFC_BN_ACT(
+        (ffc): FFC(
+          (convl2l): Conv2d(128, 128, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False, padding_mode=reflect)
+          (convl2g): Conv2d(128, 384, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False, padding_mode=reflect)
+          (convg2l): Conv2d(384, 128, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False, padding_mode=reflect)
+          (convg2g): SpectralTransform(
+            (downsample): Identity()
+            (conv1): Sequential(
+              (0): Conv2d(384, 192, kernel_size=(1, 1), stride=(1, 1), bias=False)
+              (1): BatchNorm2d(192, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+              (2): ReLU(inplace=True)
+            )
+            (fu): FourierUnit(
+              (conv_layer): Conv2d(384, 384, kernel_size=(1, 1), stride=(1, 1), bias=False)
+              (bn): BatchNorm2d(384, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+              (relu): ReLU(inplace=True)
+            )
+            (conv2): Conv2d(192, 384, kernel_size=(1, 1), stride=(1, 1), bias=False)
+          )
+          (gate): Identity()
+        )
+        (bn_l): BatchNorm2d(128, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        (bn_g): BatchNorm2d(384, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        (act_l): ReLU(inplace=True)
+        (act_g): ReLU(inplace=True)
+      )
+    )
+    (7): FFCResnetBlock(
+      (conv1): FFC_BN_ACT(
+        (ffc): FFC(
+          (convl2l): Conv2d(128, 128, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False, padding_mode=reflect)
+          (convl2g): Conv2d(128, 384, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False, padding_mode=reflect)
+          (convg2l): Conv2d(384, 128, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False, padding_mode=reflect)
+          (convg2g): SpectralTransform(
+            (downsample): Identity()
+            (conv1): Sequential(
+              (0): Conv2d(384, 192, kernel_size=(1, 1), stride=(1, 1), bias=False)
+              (1): BatchNorm2d(192, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+              (2): ReLU(inplace=True)
+            )
+            (fu): FourierUnit(
+              (conv_layer): Conv2d(384, 384, kernel_size=(1, 1), stride=(1, 1), bias=False)
+              (bn): BatchNorm2d(384, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+              (relu): ReLU(inplace=True)
+            )
+            (conv2): Conv2d(192, 384, kernel_size=(1, 1), stride=(1, 1), bias=False)
+          )
+          (gate): Identity()
+        )
+        (bn_l): BatchNorm2d(128, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        (bn_g): BatchNorm2d(384, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        (act_l): ReLU(inplace=True)
+        (act_g): ReLU(inplace=True)
+      )
+      (conv2): FFC_BN_ACT(
+        (ffc): FFC(
+          (convl2l): Conv2d(128, 128, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False, padding_mode=reflect)
+          (convl2g): Conv2d(128, 384, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False, padding_mode=reflect)
+          (convg2l): Conv2d(384, 128, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False, padding_mode=reflect)
+          (convg2g): SpectralTransform(
+            (downsample): Identity()
+            (conv1): Sequential(
+              (0): Conv2d(384, 192, kernel_size=(1, 1), stride=(1, 1), bias=False)
+              (1): BatchNorm2d(192, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+              (2): ReLU(inplace=True)
+            )
+            (fu): FourierUnit(
+              (conv_layer): Conv2d(384, 384, kernel_size=(1, 1), stride=(1, 1), bias=False)
+              (bn): BatchNorm2d(384, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+              (relu): ReLU(inplace=True)
+            )
+            (conv2): Conv2d(192, 384, kernel_size=(1, 1), stride=(1, 1), bias=False)
+          )
+          (gate): Identity()
+        )
+        (bn_l): BatchNorm2d(128, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        (bn_g): BatchNorm2d(384, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        (act_l): ReLU(inplace=True)
+        (act_g): ReLU(inplace=True)
+      )
+    )
+    (8): FFCResnetBlock(
+      (conv1): FFC_BN_ACT(
+        (ffc): FFC(
+          (convl2l): Conv2d(128, 128, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False, padding_mode=reflect)
+          (convl2g): Conv2d(128, 384, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False, padding_mode=reflect)
+          (convg2l): Conv2d(384, 128, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False, padding_mode=reflect)
+          (convg2g): SpectralTransform(
+            (downsample): Identity()
+            (conv1): Sequential(
+              (0): Conv2d(384, 192, kernel_size=(1, 1), stride=(1, 1), bias=False)
+              (1): BatchNorm2d(192, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+              (2): ReLU(inplace=True)
+            )
+            (fu): FourierUnit(
+              (conv_layer): Conv2d(384, 384, kernel_size=(1, 1), stride=(1, 1), bias=False)
+              (bn): BatchNorm2d(384, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+              (relu): ReLU(inplace=True)
+            )
+            (conv2): Conv2d(192, 384, kernel_size=(1, 1), stride=(1, 1), bias=False)
+          )
+          (gate): Identity()
+        )
+        (bn_l): BatchNorm2d(128, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        (bn_g): BatchNorm2d(384, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        (act_l): ReLU(inplace=True)
+        (act_g): ReLU(inplace=True)
+      )
+      (conv2): FFC_BN_ACT(
+        (ffc): FFC(
+          (convl2l): Conv2d(128, 128, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False, padding_mode=reflect)
+          (convl2g): Conv2d(128, 384, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False, padding_mode=reflect)
+          (convg2l): Conv2d(384, 128, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False, padding_mode=reflect)
+          (convg2g): SpectralTransform(
+            (downsample): Identity()
+            (conv1): Sequential(
+              (0): Conv2d(384, 192, kernel_size=(1, 1), stride=(1, 1), bias=False)
+              (1): BatchNorm2d(192, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+              (2): ReLU(inplace=True)
+            )
+            (fu): FourierUnit(
+              (conv_layer): Conv2d(384, 384, kernel_size=(1, 1), stride=(1, 1), bias=False)
+              (bn): BatchNorm2d(384, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+              (relu): ReLU(inplace=True)
+            )
+            (conv2): Conv2d(192, 384, kernel_size=(1, 1), stride=(1, 1), bias=False)
+          )
+          (gate): Identity()
+        )
+        (bn_l): BatchNorm2d(128, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        (bn_g): BatchNorm2d(384, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        (act_l): ReLU(inplace=True)
+        (act_g): ReLU(inplace=True)
+      )
+    )
+    (9): FFCResnetBlock(
+      (conv1): FFC_BN_ACT(
+        (ffc): FFC(
+          (convl2l): Conv2d(128, 128, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False, padding_mode=reflect)
+          (convl2g): Conv2d(128, 384, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False, padding_mode=reflect)
+          (convg2l): Conv2d(384, 128, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False, padding_mode=reflect)
+          (convg2g): SpectralTransform(
+            (downsample): Identity()
+            (conv1): Sequential(
+              (0): Conv2d(384, 192, kernel_size=(1, 1), stride=(1, 1), bias=False)
+              (1): BatchNorm2d(192, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+              (2): ReLU(inplace=True)
+            )
+            (fu): FourierUnit(
+              (conv_layer): Conv2d(384, 384, kernel_size=(1, 1), stride=(1, 1), bias=False)
+              (bn): BatchNorm2d(384, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+              (relu): ReLU(inplace=True)
+            )
+            (conv2): Conv2d(192, 384, kernel_size=(1, 1), stride=(1, 1), bias=False)
+          )
+          (gate): Identity()
+        )
+        (bn_l): BatchNorm2d(128, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        (bn_g): BatchNorm2d(384, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        (act_l): ReLU(inplace=True)
+        (act_g): ReLU(inplace=True)
+      )
+      (conv2): FFC_BN_ACT(
+        (ffc): FFC(
+          (convl2l): Conv2d(128, 128, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False, padding_mode=reflect)
+          (convl2g): Conv2d(128, 384, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False, padding_mode=reflect)
+          (convg2l): Conv2d(384, 128, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False, padding_mode=reflect)
+          (convg2g): SpectralTransform(
+            (downsample): Identity()
+            (conv1): Sequential(
+              (0): Conv2d(384, 192, kernel_size=(1, 1), stride=(1, 1), bias=False)
+              (1): BatchNorm2d(192, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+              (2): ReLU(inplace=True)
+            )
+            (fu): FourierUnit(
+              (conv_layer): Conv2d(384, 384, kernel_size=(1, 1), stride=(1, 1), bias=False)
+              (bn): BatchNorm2d(384, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+              (relu): ReLU(inplace=True)
+            )
+            (conv2): Conv2d(192, 384, kernel_size=(1, 1), stride=(1, 1), bias=False)
+          )
+          (gate): Identity()
+        )
+        (bn_l): BatchNorm2d(128, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        (bn_g): BatchNorm2d(384, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        (act_l): ReLU(inplace=True)
+        (act_g): ReLU(inplace=True)
+      )
+    )
+    (10): FFCResnetBlock(
+      (conv1): FFC_BN_ACT(
+        (ffc): FFC(
+          (convl2l): Conv2d(128, 128, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False, padding_mode=reflect)
+          (convl2g): Conv2d(128, 384, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False, padding_mode=reflect)
+          (convg2l): Conv2d(384, 128, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False, padding_mode=reflect)
+          (convg2g): SpectralTransform(
+            (downsample): Identity()
+            (conv1): Sequential(
+              (0): Conv2d(384, 192, kernel_size=(1, 1), stride=(1, 1), bias=False)
+              (1): BatchNorm2d(192, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+              (2): ReLU(inplace=True)
+            )
+            (fu): FourierUnit(
+              (conv_layer): Conv2d(384, 384, kernel_size=(1, 1), stride=(1, 1), bias=False)
+              (bn): BatchNorm2d(384, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+              (relu): ReLU(inplace=True)
+            )
+            (conv2): Conv2d(192, 384, kernel_size=(1, 1), stride=(1, 1), bias=False)
+          )
+          (gate): Identity()
+        )
+        (bn_l): BatchNorm2d(128, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        (bn_g): BatchNorm2d(384, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        (act_l): ReLU(inplace=True)
+        (act_g): ReLU(inplace=True)
+      )
+      (conv2): FFC_BN_ACT(
+        (ffc): FFC(
+          (convl2l): Conv2d(128, 128, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False, padding_mode=reflect)
+          (convl2g): Conv2d(128, 384, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False, padding_mode=reflect)
+          (convg2l): Conv2d(384, 128, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False, padding_mode=reflect)
+          (convg2g): SpectralTransform(
+            (downsample): Identity()
+            (conv1): Sequential(
+              (0): Conv2d(384, 192, kernel_size=(1, 1), stride=(1, 1), bias=False)
+              (1): BatchNorm2d(192, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+              (2): ReLU(inplace=True)
+            )
+            (fu): FourierUnit(
+              (conv_layer): Conv2d(384, 384, kernel_size=(1, 1), stride=(1, 1), bias=False)
+              (bn): BatchNorm2d(384, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+              (relu): ReLU(inplace=True)
+            )
+            (conv2): Conv2d(192, 384, kernel_size=(1, 1), stride=(1, 1), bias=False)
+          )
+          (gate): Identity()
+        )
+        (bn_l): BatchNorm2d(128, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        (bn_g): BatchNorm2d(384, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        (act_l): ReLU(inplace=True)
+        (act_g): ReLU(inplace=True)
+      )
+    )
+    (11): FFCResnetBlock(
+      (conv1): FFC_BN_ACT(
+        (ffc): FFC(
+          (convl2l): Conv2d(128, 128, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False, padding_mode=reflect)
+          (convl2g): Conv2d(128, 384, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False, padding_mode=reflect)
+          (convg2l): Conv2d(384, 128, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False, padding_mode=reflect)
+          (convg2g): SpectralTransform(
+            (downsample): Identity()
+            (conv1): Sequential(
+              (0): Conv2d(384, 192, kernel_size=(1, 1), stride=(1, 1), bias=False)
+              (1): BatchNorm2d(192, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+              (2): ReLU(inplace=True)
+            )
+            (fu): FourierUnit(
+              (conv_layer): Conv2d(384, 384, kernel_size=(1, 1), stride=(1, 1), bias=False)
+              (bn): BatchNorm2d(384, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+              (relu): ReLU(inplace=True)
+            )
+            (conv2): Conv2d(192, 384, kernel_size=(1, 1), stride=(1, 1), bias=False)
+          )
+          (gate): Identity()
+        )
+        (bn_l): BatchNorm2d(128, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        (bn_g): BatchNorm2d(384, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        (act_l): ReLU(inplace=True)
+        (act_g): ReLU(inplace=True)
+      )
+      (conv2): FFC_BN_ACT(
+        (ffc): FFC(
+          (convl2l): Conv2d(128, 128, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False, padding_mode=reflect)
+          (convl2g): Conv2d(128, 384, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False, padding_mode=reflect)
+          (convg2l): Conv2d(384, 128, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False, padding_mode=reflect)
+          (convg2g): SpectralTransform(
+            (downsample): Identity()
+            (conv1): Sequential(
+              (0): Conv2d(384, 192, kernel_size=(1, 1), stride=(1, 1), bias=False)
+              (1): BatchNorm2d(192, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+              (2): ReLU(inplace=True)
+            )
+            (fu): FourierUnit(
+              (conv_layer): Conv2d(384, 384, kernel_size=(1, 1), stride=(1, 1), bias=False)
+              (bn): BatchNorm2d(384, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+              (relu): ReLU(inplace=True)
+            )
+            (conv2): Conv2d(192, 384, kernel_size=(1, 1), stride=(1, 1), bias=False)
+          )
+          (gate): Identity()
+        )
+        (bn_l): BatchNorm2d(128, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        (bn_g): BatchNorm2d(384, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        (act_l): ReLU(inplace=True)
+        (act_g): ReLU(inplace=True)
+      )
+    )
+    (12): FFCResnetBlock(
+      (conv1): FFC_BN_ACT(
+        (ffc): FFC(
+          (convl2l): Conv2d(128, 128, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False, padding_mode=reflect)
+          (convl2g): Conv2d(128, 384, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False, padding_mode=reflect)
+          (convg2l): Conv2d(384, 128, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False, padding_mode=reflect)
+          (convg2g): SpectralTransform(
+            (downsample): Identity()
+            (conv1): Sequential(
+              (0): Conv2d(384, 192, kernel_size=(1, 1), stride=(1, 1), bias=False)
+              (1): BatchNorm2d(192, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+              (2): ReLU(inplace=True)
+            )
+            (fu): FourierUnit(
+              (conv_layer): Conv2d(384, 384, kernel_size=(1, 1), stride=(1, 1), bias=False)
+              (bn): BatchNorm2d(384, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+              (relu): ReLU(inplace=True)
+            )
+            (conv2): Conv2d(192, 384, kernel_size=(1, 1), stride=(1, 1), bias=False)
+          )
+          (gate): Identity()
+        )
+        (bn_l): BatchNorm2d(128, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        (bn_g): BatchNorm2d(384, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        (act_l): ReLU(inplace=True)
+        (act_g): ReLU(inplace=True)
+      )
+      (conv2): FFC_BN_ACT(
+        (ffc): FFC(
+          (convl2l): Conv2d(128, 128, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False, padding_mode=reflect)
+          (convl2g): Conv2d(128, 384, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False, padding_mode=reflect)
+          (convg2l): Conv2d(384, 128, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False, padding_mode=reflect)
+          (convg2g): SpectralTransform(
+            (downsample): Identity()
+            (conv1): Sequential(
+              (0): Conv2d(384, 192, kernel_size=(1, 1), stride=(1, 1), bias=False)
+              (1): BatchNorm2d(192, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+              (2): ReLU(inplace=True)
+            )
+            (fu): FourierUnit(
+              (conv_layer): Conv2d(384, 384, kernel_size=(1, 1), stride=(1, 1), bias=False)
+              (bn): BatchNorm2d(384, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+              (relu): ReLU(inplace=True)
+            )
+            (conv2): Conv2d(192, 384, kernel_size=(1, 1), stride=(1, 1), bias=False)
+          )
+          (gate): Identity()
+        )
+        (bn_l): BatchNorm2d(128, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        (bn_g): BatchNorm2d(384, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        (act_l): ReLU(inplace=True)
+        (act_g): ReLU(inplace=True)
+      )
+    )
+    (13): FFCResnetBlock(
+      (conv1): FFC_BN_ACT(
+        (ffc): FFC(
+          (convl2l): Conv2d(128, 128, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False, padding_mode=reflect)
+          (convl2g): Conv2d(128, 384, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False, padding_mode=reflect)
+          (convg2l): Conv2d(384, 128, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False, padding_mode=reflect)
+          (convg2g): SpectralTransform(
+            (downsample): Identity()
+            (conv1): Sequential(
+              (0): Conv2d(384, 192, kernel_size=(1, 1), stride=(1, 1), bias=False)
+              (1): BatchNorm2d(192, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+              (2): ReLU(inplace=True)
+            )
+            (fu): FourierUnit(
+              (conv_layer): Conv2d(384, 384, kernel_size=(1, 1), stride=(1, 1), bias=False)
+              (bn): BatchNorm2d(384, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+              (relu): ReLU(inplace=True)
+            )
+            (conv2): Conv2d(192, 384, kernel_size=(1, 1), stride=(1, 1), bias=False)
+          )
+          (gate): Identity()
+        )
+        (bn_l): BatchNorm2d(128, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        (bn_g): BatchNorm2d(384, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        (act_l): ReLU(inplace=True)
+        (act_g): ReLU(inplace=True)
+      )
+      (conv2): FFC_BN_ACT(
+        (ffc): FFC(
+          (convl2l): Conv2d(128, 128, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False, padding_mode=reflect)
+          (convl2g): Conv2d(128, 384, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False, padding_mode=reflect)
+          (convg2l): Conv2d(384, 128, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False, padding_mode=reflect)
+          (convg2g): SpectralTransform(
+            (downsample): Identity()
+            (conv1): Sequential(
+              (0): Conv2d(384, 192, kernel_size=(1, 1), stride=(1, 1), bias=False)
+              (1): BatchNorm2d(192, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+              (2): ReLU(inplace=True)
+            )
+            (fu): FourierUnit(
+              (conv_layer): Conv2d(384, 384, kernel_size=(1, 1), stride=(1, 1), bias=False)
+              (bn): BatchNorm2d(384, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+              (relu): ReLU(inplace=True)
+            )
+            (conv2): Conv2d(192, 384, kernel_size=(1, 1), stride=(1, 1), bias=False)
+          )
+          (gate): Identity()
+        )
+        (bn_l): BatchNorm2d(128, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        (bn_g): BatchNorm2d(384, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        (act_l): ReLU(inplace=True)
+        (act_g): ReLU(inplace=True)
+      )
+    )
+    (14): ConcatTupleLayer()
+    (15): ConvTranspose2d(512, 256, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1), output_padding=(1, 1))
+    (16): BatchNorm2d(256, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+    (17): ReLU(inplace=True)
+    (18): ConvTranspose2d(256, 128, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1), output_padding=(1, 1))
+    (19): BatchNorm2d(128, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+    (20): ReLU(inplace=True)
+    (21): ConvTranspose2d(128, 64, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1), output_padding=(1, 1))
+    (22): BatchNorm2d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+    (23): ReLU(inplace=True)
+    (24): ReflectionPad2d((3, 3, 3, 3))
+    (25): Conv2d(64, 8, kernel_size=(7, 7), stride=(1, 1))
+    (26): Sigmoid()
+  )
+)
+[2026-04-03 02:51:27,441][root][INFO] - Make discriminator pix2pixhd_nlayer
+[2026-04-03 02:51:27,497][root][INFO] - Make visualizer directory
+[2026-04-03 02:51:27,505][root][INFO] - Make evaluator default
+[2026-04-03 02:51:47,333][saicinpainting.evaluation.losses.base_loss][INFO] - FIDscore init called
+[2026-04-03 02:51:47,336][saicinpainting.evaluation.losses.fid.inception][INFO] - fid_inception_v3 called
+[2026-04-03 02:51:47,697][saicinpainting.evaluation.losses.fid.inception][INFO] - models.inception_v3 done
+[2026-04-03 02:51:47,963][saicinpainting.evaluation.losses.fid.inception][INFO] - fid_inception_v3 patching done
+[2026-04-03 02:51:51,878][saicinpainting.evaluation.losses.fid.inception][INFO] - fid_inception_v3 weights downloaded
+[2026-04-03 02:51:51,986][saicinpainting.evaluation.losses.fid.inception][INFO] - fid_inception_v3 weights loaded into model
+[2026-04-03 02:51:51,992][saicinpainting.evaluation.losses.base_loss][INFO] - FIDscore init done

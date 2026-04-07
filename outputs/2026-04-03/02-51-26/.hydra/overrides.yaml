@@ -1,0 +1,4 @@
+- location=my_dataset
+- data.batch_size=8
+- data.num_workers=4
+- trainer.kwargs.max_epochs=100

@@ -1,0 +1,105 @@
+# configs/training/data/satellite_256.yaml
+# @package _group_
+
+# Batch sizes - adjust based on GPU memory
+# For 8-channel images: use smaller batches than RGB
+batch_size: 8 # 8-channel needs more VRAM than 3-channel
+val_batch_size: 4 # Validation can be smaller
+num_workers: 4 # Parallel data loading (4-8 recommended)
+
+train:
+  # Location of training images
+  # Your folder structure should be:
+  # my_dataset/train/*.tif (or *.png, *.npy)
+  indir: ${location.data_root_dir}/train
+
+  # Image size for training (256x256 for your satellite patches)
+  out_size: 256
+
+  # Dataset type - use multichannel for 8-band images
+  kind: multichannel
+  n_channels: 8
+
+  # Image file extension (.tif for geospatial, .png, or .npy for NumPy arrays)
+  img_suffix: .npy
+
+  # Mask generation settings - controls what kinds of masks are used
+  mask_gen_kwargs:
+    # Probabilities are automatically normalized, don't need to sum to 1
+
+    # Irregular masks (random stroke-like masks)
+    irregular_proba: 1/3
+    irregular_kwargs:
+      max_angle: 4
+      max_len: 200 # Max stroke length
+      max_width: 100 # Max stroke width
+      max_times: 5 # Max number of strokes
+      min_times: 1
+
+    # Box/rectangular masks
+    box_proba: 1/3
+    box_kwargs:
+      margin: 10
+      bbox_min_size: 30
+      bbox_max_size: 150 # Max box size
+      max_times: 4 # Max number of boxes
+      min_times: 1
+
+    # Segmentation-based masks (optional, set to 0 if no semantic segmentation)
+    segm_proba: 1/3
+    segm_kwargs:
+      confidence_threshold: 0.5
+
+  # Augmentation type
+  # Options: 'no_augs', 'distortions', 'light_distortions'
+  # Recommended: no_augs or light_distortions for satellite (geographic data should stay similar)
+  transform_variant: light_distortions
+
+  # DataLoader configuration
+  dataloader_kwargs:
+    batch_size: ${data.batch_size}
+    shuffle: True # Shuffle training data
+    num_workers: ${data.num_workers}
+    pin_memory: True # Speed up GPU transfer
+
+val:
+  # Location of validation images
+  # Contains pre-computed images and masks for consistency
+  indir: ${location.data_root_dir}/val
+
+  kind: multichannel
+  n_channels: 8
+  out_size: 256
+
+  # For validation, use pre-generated fixed masks (unlike training which generates random ones)
+  # Your val folder should have structure:
+  # val/image1.tif, image1_mask.png
+  # val/image2.tif, image2_mask.png
+  img_suffix: .npy
+
+  dataloader_kwargs:
+    batch_size: ${data.val_batch_size}
+    shuffle: False # Don't shuffle validation
+    num_workers: ${data.num_workers}
+
+visual_test:
+  # Optional: Visual inspection set (100+ images)
+  indir: ${location.data_root_dir}/visual_test
+  kind: multichannel
+  n_channels: 8
+  img_suffix: .npy
+  dataloader_kwargs:
+    batch_size: ${data.val_batch_size}
+    shuffle: False
+    num_workers: ${data.num_workers}
+
+eval:
+  # Optional: Evaluation set for final metrics
+  indir: ${location.data_root_dir}/eval
+  kind: multichannel
+  n_channels: 8
+  img_suffix: .npy
+  dataloader_kwargs:
+    batch_size: ${data.val_batch_size}
+    shuffle: False
+    num_workers: ${data.num_workers}

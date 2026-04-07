@@ -1,0 +1,23 @@
+# configs/training/generator/ffc_resnet_satellite.yaml
+kind: ffc_resnet
+input_nc: 9 # 8 bands + 1 mask
+output_nc: 8 # 8 bands output
+ngf: 64
+n_downsampling: 3
+n_blocks: 9
+add_out_act: sigmoid # or none for unbounded output
+
+init_conv_kwargs:
+  ratio_gin: 0
+  ratio_gout: 0
+  enable_lfu: False
+
+downsample_conv_kwargs:
+  ratio_gin: 0
+  ratio_gout: 0
+  enable_lfu: False
+
+resnet_conv_kwargs:
+  ratio_gin: 0.75
+  ratio_gout: 0.75
+  enable_lfu: False

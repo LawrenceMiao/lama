@@ -1,0 +1,154 @@
+location:
+  data_root_dir: /scratch/my_dataset/
+  out_root_dir: /scratch/lama_experiments/
+  tb_dir: /scratch/lama_experiments/tb_logs/
+  pretrained_models: ${env:TORCH_HOME,/scratch/lama_models/}
+data:
+  batch_size: 8
+  val_batch_size: 4
+  num_workers: 4
+  train:
+    indir: ${location.data_root_dir}/train
+    out_size: 256
+    kind: multichannel
+    n_channels: 8
+    img_suffix: .npy
+    mask_gen_kwargs:
+      irregular_proba: 1/3
+      irregular_kwargs:
+        max_angle: 4
+        max_len: 200
+        max_width: 100
+        max_times: 5
+        min_times: 1
+      box_proba: 1/3
+      box_kwargs:
+        margin: 10
+        bbox_min_size: 30
+        bbox_max_size: 150
+        max_times: 4
+        min_times: 1
+      segm_proba: 1/3
+      segm_kwargs:
+        confidence_threshold: 0.5
+    transform_variant: light_distortions
+    dataloader_kwargs:
+      batch_size: ${data.batch_size}
+      shuffle: true
+      num_workers: ${data.num_workers}
+      pin_memory: true
+  val:
+    indir: ${location.data_root_dir}/val
+    kind: multichannel
+    n_channels: 8
+    out_size: 256
+    img_suffix: .npy
+    dataloader_kwargs:
+      batch_size: ${data.val_batch_size}
+      shuffle: false
+      num_workers: ${data.num_workers}
+  visual_test:
+    indir: ${location.data_root_dir}/visual_test
+    kind: multichannel
+    n_channels: 8
+    img_suffix: .npy
+    dataloader_kwargs:
+      batch_size: ${data.val_batch_size}
+      shuffle: false
+      num_workers: ${data.num_workers}
+  eval:
+    indir: ${location.data_root_dir}/eval
+    kind: multichannel
+    n_channels: 8
+    img_suffix: .npy
+    dataloader_kwargs:
+      batch_size: ${data.val_batch_size}
+      shuffle: false
+      num_workers: ${data.num_workers}
+generator:
+  kind: ffc_resnet
+  input_nc: 9
+  output_nc: 8
+  ngf: 64
+  n_downsampling: 3
+  n_blocks: 9
+  add_out_act: sigmoid
+  init_conv_kwargs:
+    ratio_gin: 0
+    ratio_gout: 0
+    enable_lfu: false
+  downsample_conv_kwargs:
+    ratio_gin: 0
+    ratio_gout: 0
+    enable_lfu: false
+  resnet_conv_kwargs:
+    ratio_gin: 0.75
+    ratio_gout: 0.75
+    enable_lfu: false
+discriminator:
+  kind: pix2pixhd_nlayer
+  input_nc: 8
+  ndf: 64
+  n_layers: 4
+optimizers:
+  generator:
+    kind: adam
+    lr: 0.001
+  discriminator:
+    kind: adam
+    lr: 0.0001
+visualizer:
+  kind: directory
+  outdir: samples
+  key_order:
+  - image
+  - predicted_image
+  - discr_output_fake
+  - discr_output_real
+  - inpainted
+  rescale_keys:
+  - discr_output_fake
+  - discr_output_real
+evaluator:
+  kind: default
+  inpainted_key: inpainted
+  integral_kind: ssim_fid100_f1
+trainer:
+  kwargs:
+    gpus: -1
+    accelerator: ddp
+    max_epochs: 100
+    gradient_clip_val: 1
+    log_gpu_memory: None
+    limit_train_batches: 25000
+    val_check_interval: ${trainer.kwargs.limit_train_batches}
+    log_every_n_steps: 250
+    precision: 32
+    terminate_on_nan: false
+    check_val_every_n_epoch: 1
+    num_sanity_val_steps: 8
+    replace_sampler_ddp: false
+  checkpoint_kwargs:
+    verbose: true
+    save_top_k: 5
+    save_last: true
+    period: 1
+    monitor: val_ssim_fid100_f1_total_mean
+    mode: max
+run_title: LaMa FFC for 8-channel satellites
+training_model:
+  kind: default
+  concat_mask: true
+losses:
+  l1:
+    weight_missing: 10
+    weight_known: 10
+  perceptual:
+    weight: 0
+  adversarial:
+    kind: r1
+    weight: 10
+  feature_matching:
+    weight: 100
+  resnet_pl:
+    weight: 0

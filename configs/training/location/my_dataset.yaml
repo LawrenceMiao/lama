@@ -1,0 +1,5 @@
+# @package _group_
+data_root_dir: ./scratch/my_dataset/
+out_root_dir: ./scratch/lama_experiments/
+tb_dir: ./scratch/lama_experiments/tb_logs/
+pretrained_models: ${env:TORCH_HOME,./scratch/lama_models/}
