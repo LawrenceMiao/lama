@@ -134,9 +134,16 @@ class BaseInpaintingTrainingModule(ptl.LightningModule):
         res = [make_default_val_dataloader(**self.config.data.val)]
 
         if self.config.data.visual_test is not None:
-            res = res + [make_default_val_dataloader(**self.config.data.visual_test)]
+            visual_loader = make_default_val_dataloader(**self.config.data.visual_test)
+            if len(visual_loader.dataset) == 0:
+                LOGGER.warning(
+                    "visual_test split is empty (no image/mask pairs); reusing the main val dataloader."
+                )
+                res.append(res[0])
+            else:
+                res.append(visual_loader)
         else:
-            res = res + res
+            res.append(res[0])
 
         extra_val = self.config.data.get('extra_val', ())
         if extra_val:

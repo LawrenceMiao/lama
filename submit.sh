@@ -1,10 +1,15 @@
-export TORCH_HOME=$(pwd)
-export PYTHONPATH=$(pwd)
+#!/bin/bash -l
+module load miniconda
+conda activate lama
 
+export TORCH_HOME="/projectnb/cs585/students/ljmiao/lama"
+export PYTHONPATH="/projectnb/cs585/students/ljmiao/lama"
 
-python3 bin/train.py \
+python3 -c "import torch; print(torch.cuda.is_available())"
+
+python3 /projectnb/cs585/students/ljmiao/lama/bin/train.py \
   -cn lama-fourier-satellite \
   location=my_dataset \
-  data.batch_size=8 \
+  data.batch_size=1 \
   data.num_workers=4 \
-  trainer.kwargs.max_epochs=2 > output.txt
+  trainer.kwargs.max_epochs=2

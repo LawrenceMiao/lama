@@ -197,24 +197,83 @@ class MultiChannelInpaintingEvalDataset(Dataset):
         n_channels=8,
         pad_out_to_modulo=None,
         scale_factor=None,
+        mask_subdir=None,
         **kwargs,
     ):
         self.datadir = datadir
-        self.img_suffix = img_suffix
+        self.img_suffix = img_suffix if str(img_suffix).startswith(".") else f".{img_suffix}"
         self.n_channels = n_channels
         self.pad_out_to_modulo = pad_out_to_modulo
         self.scale_factor = scale_factor
+        self.mask_subdir = mask_subdir
+
+        # Strategy 1 (LaMa default): masks named *mask*.png; image = path before "_mask" + img_suffix
         self.mask_filenames = sorted(
-            list(
-                glob.glob(
-                    os.path.join(self.datadir, "**", "*mask*.png"), recursive=True
-                )
-            )
+            glob.glob(os.path.join(self.datadir, "**", "*mask*.png"), recursive=True)
         )
         self.img_filenames = [
             fname.rsplit("_mask", 1)[0] + self.img_suffix
             for fname in self.mask_filenames
         ]
+        self._drop_missing_images()
+
+        # Strategy 2: enumerate *img_suffix and pair with stem_mask.{png,tif} in same folder
+        # (needed when mask filenames do not contain the substring "mask", or strategy 1 mis-pairs)
+        if len(self.mask_filenames) == 0:
+            self._pair_from_image_glob()
+
+        if len(self.mask_filenames) == 0:
+            raise ValueError(
+                f"No validation pairs found under {datadir!r}. "
+                f"Expected either (1) masks matching **/*mask*.png with images "
+                f"{{path_before_mask}}{self.img_suffix}, or (2) for each *{self.img_suffix} file, "
+                f"a sibling <stem>_mask.png (or .tif) next to the image, or under mask_subdir. "
+                f"Example: patch_01{self.img_suffix} + patch_01_mask.png in the same folder."
+            )
+
+    def _drop_missing_images(self):
+        """Keep only pairs whose image file exists (avoids silent empty sets)."""
+        imgs, masks = [], []
+        for img_path, mask_path in zip(self.img_filenames, self.mask_filenames):
+            if os.path.isfile(img_path):
+                imgs.append(img_path)
+                masks.append(mask_path)
+        self.img_filenames = imgs
+        self.mask_filenames = masks
+
+    def _pair_from_image_glob(self):
+        pattern = os.path.join(self.datadir, "**", f"*{self.img_suffix}")
+        img_paths = sorted(glob.glob(pattern, recursive=True))
+        img_out, mask_out = [], []
+        for img_path in img_paths:
+            stem, _ = os.path.splitext(os.path.basename(img_path))
+            if stem.lower().endswith("mask"):
+                continue
+            d = os.path.dirname(img_path)
+            found = None
+            for name in (
+                f"{stem}_mask.png",
+                f"{stem}_mask.PNG",
+                f"{stem}_mask.tif",
+                f"{stem}_mask.TIF",
+                f"{stem}_mask.tiff",
+            ):
+                cand = os.path.join(d, name)
+                if os.path.isfile(cand):
+                    found = cand
+                    break
+            if found is None and self.mask_subdir:
+                sub = os.path.join(self.datadir, self.mask_subdir)
+                for ext in (".png", ".PNG", ".tif", ".TIF", ".tiff", ".npy"):
+                    cand = os.path.join(sub, f"{stem}{ext}")
+                    if os.path.isfile(cand):
+                        found = cand
+                        break
+            if found is not None:
+                img_out.append(img_path)
+                mask_out.append(found)
+        self.img_filenames = img_out
+        self.mask_filenames = mask_out
 
     def __len__(self):
         return len(self.mask_filenames)
@@ -242,11 +301,23 @@ class MultiChannelInpaintingEvalDataset(Dataset):
             )
         return np.transpose(img, (2, 0, 1))
 
+    def _load_mask_gray(self, path):
+        if path.endswith(".npy"):
+            m = np.load(path)
+            if m.ndim == 3:
+                m = m[..., 0]
+            m = m.astype(np.float32)
+            if np.max(m) > 1:
+                m /= 255.0
+            return m
+        m = cv2.imread(path, cv2.IMREAD_GRAYSCALE)
+        if m is None:
+            raise FileNotFoundError(f"Could not read mask: {path}")
+        return m.astype(np.float32)
+
     def __getitem__(self, i):
         image = self._load_multichannel_image(self.img_filenames[i])
-        mask = cv2.imread(self.mask_filenames[i], cv2.IMREAD_GRAYSCALE).astype(
-            np.float32
-        )
+        mask = self._load_mask_gray(self.mask_filenames[i])
         if np.max(mask) > 1:
             mask /= 255.0
         result = dict(image=image, mask=mask[None, ...])
