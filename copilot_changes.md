@@ -78,10 +78,23 @@ Summary of edits made to support **8-channel (e.g. 256×256×8 `.npy`)** trainin
 
 ---
 
-## `saicinpainting/training/data/datasets.py` (transform alias)
+## `saicinpainting/training/data/datasets.py` (multichannel aug + transform alias)
 
 - **`get_transforms`**  
-  Accepts **`light_distortions`** as an alias of **`distortions_light`** so `configs/training/data/satellite_256.yaml` (`transform_variant: light_distortions`) matches an existing branch instead of raising **`Unexpected transform_variant`**.
+  - Accepts **`light_distortions`** as an alias of **`distortions_light`** (RGB-oriented: CLAHE, HSV, imgaug).  
+  - **`multichannel_light`** / **`satellite_multichannel`:** Pad/Crop/Flip/Brightness/**`ToFloat` only** — no **CLAHE** (requires **uint8**) and no **HueSaturationValue** (RGB-oriented), suitable for **8-channel** training.
+
+- **`_multichannel_hwc_to_uint8()`**  
+  Converts loaded multi-spectral arrays to **uint8** per channel before augment (stretch \([0,1]\) floats, scale **uint16**, min–max per channel otherwise) so pipelines that need **uint8** stay valid if extended later.
+
+- **`MultiChannelInpaintingTrainDataset`**  
+  Uses **`_multichannel_hwc_to_uint8`** before **`self.transform`** instead of converting to **[0,1] float32** first (which broke **CLAHE**: *“clahe supports only uint8 inputs”*).
+
+---
+
+## `configs/training/data/satellite_256.yaml`
+
+- **`train.transform_variant`:** **`multichannel_light`** (replaces **`light_distortions`**) so satellite training matches the multi-channel-safe augment list above.
 
 ---
 
@@ -90,3 +103,4 @@ Summary of edits made to support **8-channel (e.g. 256×256×8 `.npy`)** trainin
 - **Relative paths:** If you do not sync the `datasets.py` resolver, you can still pass **absolute** `data.val.indir` / `data.train.indir` on the CLI.
 - **Val layout:** Each val sample needs an image file plus a mask (e.g. `image1.npy` + `image1_mask.png` in the same folder), or the pairing rules above.
 - **Mask probabilities in YAML:** Prefer decimals (**`0.333333`**) or rely on **`_to_mask_proba_float`** after the **`masks.py`** fix.
+- **Multichannel + `light_distortions`:** If you override back to **`light_distortions`**, keep inputs **uint8** and expect **RGB-oriented** ops; for **8 bands**, prefer **`multichannel_light`**.

@@ -91,6 +91,33 @@ def _load_npy(path):
     return np.asarray(data, dtype=np.float32)
 
 
+def _multichannel_hwc_to_uint8(img: np.ndarray) -> np.ndarray:
+    """
+    Albumentations CLAHE / HueSaturation expect uint8 RGB-style pipelines; multi-channel
+    training uses a separate transform list. This converts H×W×C arrays to uint8 for aug
+    (Pad/Crop/Flip/Brightness + ToFloat).
+    """
+    if img.dtype == np.uint8:
+        return img
+    if img.dtype == np.uint16:
+        return np.clip(
+            img.astype(np.float32) * (255.0 / 65535.0), 0, 255
+        ).astype(np.uint8)
+    x = img.astype(np.float32)
+    out = np.empty(x.shape, dtype=np.uint8)
+    for c in range(x.shape[2]):
+        ch = x[:, :, c]
+        hi = float(ch.max())
+        lo = float(ch.min())
+        if hi <= 1.0 + 1e-5:
+            out[:, :, c] = np.clip(np.round(ch * 255.0), 0, 255).astype(np.uint8)
+        elif hi > lo:
+            out[:, :, c] = np.clip((ch - lo) / (hi - lo) * 255.0, 0, 255).astype(np.uint8)
+        else:
+            out[:, :, c] = 0
+    return out
+
+
 class InpaintingTrainDataset(Dataset):
     def __init__(self, indir, mask_generator, transform):
         self.in_files = list(
@@ -225,13 +252,9 @@ class MultiChannelInpaintingTrainDataset(Dataset):
                 pad = self.n_channels - img.shape[2]
                 img = np.pad(img, ((0, 0), (0, 0), (0, pad)), mode="constant")
 
-        # Convert to float32 and normalize to [0, 1] if needed
-        if img.dtype != np.float32:
-            img = (
-                img.astype(np.float32) / 255.0
-                if img.max() > 1
-                else img.astype(np.float32)
-            )
+        # Albumentations (CLAHE, HSV, etc.) expect uint8 for typical RGB pipelines; use
+        # transform_variant multichannel_light / satellite_multichannel — then ToFloat().
+        img = _multichannel_hwc_to_uint8(img)
 
         # Apply augmentations
         img = self.transform(image=img)["image"]
@@ -497,6 +520,17 @@ def get_transforms(transform_variant, out_size):
                 A.HueSaturationValue(
                     hue_shift_limit=5, sat_shift_limit=30, val_shift_limit=5
                 ),
+                A.ToFloat(),
+            ]
+        )
+    elif transform_variant in ("multichannel_light", "satellite_multichannel"):
+        # No CLAHE (uint8-only) or HueSaturation (RGB-only); safe for H×W×8 and similar.
+        transform = A.Compose(
+            [
+                A.PadIfNeeded(min_height=out_size, min_width=out_size),
+                A.RandomCrop(height=out_size, width=out_size),
+                A.HorizontalFlip(),
+                A.RandomBrightnessContrast(brightness_limit=0.2, contrast_limit=0.2),
                 A.ToFloat(),
             ]
         )

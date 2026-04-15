@@ -51,9 +51,9 @@ train:
       confidence_threshold: 0.5
 
   # Augmentation type
-  # Options: 'no_augs', 'distortions', 'light_distortions'
-  # Recommended: no_augs or light_distortions for satellite (geographic data should stay similar)
-  transform_variant: light_distortions
+  # Use multichannel_light for 8-channel data (CLAHE/HSV in light_distortions need uint8 RGB).
+  # Options include: no_augs, multichannel_light, distortions_light (RGB-oriented)
+  transform_variant: multichannel_light
 
   # DataLoader configuration
   dataloader_kwargs:
