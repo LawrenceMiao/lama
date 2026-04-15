@@ -200,7 +200,9 @@ class MultiChannelInpaintingEvalDataset(Dataset):
         mask_subdir=None,
         **kwargs,
     ):
-        self.datadir = datadir
+        # Normalize so ./a//b matches a/b; resolve relative paths vs. process cwd (batch jobs often
+        # fail when cwd != project root — double slash in logs is usually harmless).
+        self.datadir = os.path.normpath(os.path.abspath(str(datadir)))
         self.img_suffix = img_suffix if str(img_suffix).startswith(".") else f".{img_suffix}"
         self.n_channels = n_channels
         self.pad_out_to_modulo = pad_out_to_modulo
@@ -223,12 +225,26 @@ class MultiChannelInpaintingEvalDataset(Dataset):
             self._pair_from_image_glob()
 
         if len(self.mask_filenames) == 0:
+            n_mask_png = len(
+                glob.glob(
+                    os.path.join(self.datadir, "**", "*mask*.png"), recursive=True
+                )
+            )
+            n_npy = len(
+                glob.glob(
+                    os.path.join(self.datadir, "**", f"*{self.img_suffix}"),
+                    recursive=True,
+                )
+            )
             raise ValueError(
-                f"No validation pairs found under {datadir!r}. "
+                f"No validation pairs found under {datadir!r} "
+                f"(resolved={self.datadir!r}, isdir={os.path.isdir(self.datadir)}, "
+                f"glob *mask*.png={n_mask_png}, glob *{self.img_suffix}={n_npy}). "
                 f"Expected either (1) masks matching **/*mask*.png with images "
                 f"{{path_before_mask}}{self.img_suffix}, or (2) for each *{self.img_suffix} file, "
                 f"a sibling <stem>_mask.png (or .tif) next to the image, or under mask_subdir. "
-                f"Example: patch_01{self.img_suffix} + patch_01_mask.png in the same folder."
+                f"Example: patch_01{self.img_suffix} + patch_01_mask.png in the same folder. "
+                f"If glob counts are 0, fix the job working directory or use an absolute data.val.indir."
             )
 
     def _drop_missing_images(self):
