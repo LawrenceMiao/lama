@@ -1,1 +1,84 @@
-# Copilot Changes
+# Copilot / assistant changes (multichannel satellite + Hydra paths)
+
+Summary of edits made to support **8-channel (e.g. 256×256×8 `.npy`)** training and to fix validation path and metric issues when using **Hydra** and **relative `./scratch/...` paths**.
+
+---
+
+## `saicinpainting/training/data/datasets.py`
+
+- **`_resolve_user_data_path()`**  
+  Resolves relative dataset paths using **`hydra.utils.get_original_cwd()`** so `./scratch/...` points at the project root, not Hydra’s run directory (`outputs/<date>/<time>/`). Falls back to `os.getcwd()` if Hydra is not available.
+
+- **`make_default_train_dataloader`**  
+  Resolves **`indir`** with `_resolve_user_data_path` before building the dataset (same cwd issue as val).
+
+- **`make_default_val_dataset`**  
+  Resolves **`indir`** the same way before building val / visual_test / etc.
+
+- **`MultiChannelInpaintingTrainDataset`**  
+  Includes **`*.npy`** in the file glob (in addition to `.tif` / `.png`) so NumPy training patches are discovered.
+
+- **`MultiChannelInpaintingEvalDataset`** (new)  
+  Validation with **precomputed masks**:
+  - Loads multichannel images (`.npy`, or `cv2` for raster).
+  - **Strategy 1:** `**/*mask*.png` and image path `{path_before "_mask"} + img_suffix`.
+  - **Strategy 2:** If no pairs, glob `*{img_suffix}` and pair **`stem_mask.png`** / **`.tif`** in the same folder (and optional **`mask_subdir`**).
+  - Drops mask rows whose image file is missing.
+  - **`_load_mask_gray`:** supports `.npy` masks; normalizes uint8-style masks.
+  - Clear **`ValueError`** with `resolved=`, `isdir=`, and glob counts when nothing matches.
+
+- **`make_default_val_dataset`**  
+  **`kind: multichannel`** now instantiates **`MultiChannelInpaintingEvalDataset`** (previously raised “Unknown val dataset kind multichannel”).
+
+- **Imports** from `saicinpainting.evaluation.data`: **`pad_img_to_modulo`**, **`scale_image`** for the multichannel eval dataset.
+
+---
+
+## `saicinpainting/training/trainers/base.py`
+
+- **`val_dataloader`**  
+  If **`visual_test`** is configured but the **visual_test loader has length 0**, logs a warning and **reuses the main val dataloader** instead of failing on an empty second loader.
+
+---
+
+## `configs/training/location/my_dataset.yaml`
+
+- Removed **trailing slashes** on `data_root_dir`, `out_root_dir`, and `tb_dir` so Hydra interpolation does not produce noisy `//` in paths (cosmetic; behavior unchanged when combined with `/val`).
+
+---
+
+## `configs/training/evaluator/satellite_multichannel.yaml` (new)
+
+- Evaluator preset for **>3 channels**: **`ssim: true`**, **`lpips: false`**, **`fid: false`**, **`integral_kind: null`**.  
+  Default LPIPS/FID assume **RGB (3 channels)**; they caused **8 vs 3** channel errors during validation.
+
+---
+
+## `configs/training/lama-fourier-satellite.yaml`
+
+- **`defaults` → evaluator:** `default_inpainted` replaced with **`satellite_multichannel`** so satellite runs use the multichannel-safe evaluator by default.
+
+---
+
+## `saicinpainting/training/data/masks.py`
+
+- **`_to_mask_proba_float()`**  
+  Converts mask probability config values to **float**. YAML/OmegaConf often parses values like **`1/3` as the string `"1/3"`**, which caused **`TypeError: '>' not supported between instances of 'str' and 'int'`** in **`MixedMaskGenerator`** when comparing `irregular_proba > 0`. String forms **`"a/b"`** are evaluated as division.
+
+- **`MixedMaskGenerator.__init__`**  
+  Coerces **`irregular_proba`**, **`box_proba`**, **`segm_proba`**, **`squares_proba`**, **`superres_proba`**, **`outpainting_proba`**, and **`invert_proba`** with **`_to_mask_proba_float`** before use.
+
+---
+
+## `saicinpainting/training/data/datasets.py` (transform alias)
+
+- **`get_transforms`**  
+  Accepts **`light_distortions`** as an alias of **`distortions_light`** so `configs/training/data/satellite_256.yaml` (`transform_variant: light_distortions`) matches an existing branch instead of raising **`Unexpected transform_variant`**.
+
+---
+
+## Operational notes (not file edits)
+
+- **Relative paths:** If you do not sync the `datasets.py` resolver, you can still pass **absolute** `data.val.indir` / `data.train.indir` on the CLI.
+- **Val layout:** Each val sample needs an image file plus a mask (e.g. `image1.npy` + `image1_mask.png` in the same folder), or the pairing rules above.
+- **Mask probabilities in YAML:** Prefer decimals (**`0.333333`**) or rely on **`_to_mask_proba_float`** after the **`masks.py`** fix.

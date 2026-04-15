@@ -13,6 +13,24 @@ from saicinpainting.utils import LinearRamp
 LOGGER = logging.getLogger(__name__)
 
 
+def _to_mask_proba_float(v):
+    """
+    YAML/OmegaConf may pass mask probabilities as strings, e.g. `1/3` becomes "1/3"
+    (not a float), which breaks comparisons like `irregular_proba > 0`.
+    """
+    if v is None:
+        return 0.0
+    if isinstance(v, (int, float)):
+        return float(v)
+    if isinstance(v, str):
+        s = v.strip()
+        if "/" in s:
+            num, _, den = s.partition("/")
+            return float(num) / float(den)
+        return float(s)
+    return float(v)
+
+
 class DrawMethod(Enum):
     LINE = 'line'
     CIRCLE = 'circle'
@@ -257,6 +275,14 @@ class MixedMaskGenerator:
                  superres_proba=0, superres_kwargs=None,
                  outpainting_proba=0, outpainting_kwargs=None,
                  invert_proba=0):
+        irregular_proba = _to_mask_proba_float(irregular_proba)
+        box_proba = _to_mask_proba_float(box_proba)
+        segm_proba = _to_mask_proba_float(segm_proba)
+        squares_proba = _to_mask_proba_float(squares_proba)
+        superres_proba = _to_mask_proba_float(superres_proba)
+        outpainting_proba = _to_mask_proba_float(outpainting_proba)
+        invert_proba = _to_mask_proba_float(invert_proba)
+
         self.probas = []
         self.gens = []
 

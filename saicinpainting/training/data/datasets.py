@@ -500,7 +500,8 @@ def get_transforms(transform_variant, out_size):
                 A.ToFloat(),
             ]
         )
-    elif transform_variant == "distortions_light":
+    elif transform_variant in ("distortions_light", "light_distortions"):
+        # satellite_256.yaml historically used the mis-spelled alias "light_distortions"
         transform = A.Compose(
             [
                 IAAPerspective2(scale=(0.0, 0.02)),
