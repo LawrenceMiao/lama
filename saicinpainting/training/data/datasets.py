@@ -1,4 +1,6 @@
+import ast
 import glob
+import json
 import logging
 import os
 import random
@@ -55,13 +57,38 @@ def _resolve_user_data_path(path):
     return os.path.normpath(os.path.join(base, p))
 
 
+_NPY_MAGIC = b"\x93NUMPY"
+
+
 def _load_npy(path):
     """
-    Load a .npy file. NumPy defaults to allow_pickle=False, which rejects files that use
-    pickled/object dtypes (common with older saves or non-array payloads mis-saved as .npy).
-    Training data paths are trusted local files.
+    Load an array from a path usually named *.npy.
+
+    - Real binary NumPy arrays (magic bytes \\x93NUMPY) use ``np.load``.
+    - Some pipelines save **text** nested lists (JSON or Python literals) but use a ``.npy``
+      name; ``np.load`` then fails with pickle errors (e.g. invalid load key '[').
+      Those are parsed with ``json`` or ``ast.literal_eval`` and converted with ``asarray``.
     """
-    return np.load(path, allow_pickle=True)
+    with open(path, "rb") as f:
+        header = f.read(6)
+    if len(header) >= 6 and header.startswith(_NPY_MAGIC):
+        return np.load(path, allow_pickle=True)
+
+    with open(path, "r", encoding="utf-8", errors="replace") as f:
+        text = f.read().strip()
+    if not text:
+        raise ValueError(f"Empty file: {path}")
+    try:
+        data = json.loads(text)
+    except json.JSONDecodeError:
+        try:
+            data = ast.literal_eval(text)
+        except (SyntaxError, ValueError) as e:
+            raise ValueError(
+                f"Could not parse {path!r} as JSON or Python literal (nested lists). "
+                f"Use np.save for binary .npy, or valid JSON / Python list text. Original error: {e}"
+            ) from e
+    return np.asarray(data, dtype=np.float32)
 
 
 class InpaintingTrainDataset(Dataset):
@@ -231,7 +258,9 @@ class MultiChannelInpaintingEvalDataset(Dataset):
         **kwargs,
     ):
         self.datadir = _resolve_user_data_path(datadir)
-        self.img_suffix = img_suffix if str(img_suffix).startswith(".") else f".{img_suffix}"
+        self.img_suffix = (
+            img_suffix if str(img_suffix).startswith(".") else f".{img_suffix}"
+        )
         self.n_channels = n_channels
         self.pad_out_to_modulo = pad_out_to_modulo
         self.scale_factor = scale_factor
