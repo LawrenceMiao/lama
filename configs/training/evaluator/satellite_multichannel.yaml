@@ -1,0 +1,9 @@
+# @package _group_
+# SSIM supports arbitrary channel counts. LPIPS and Inception-FID assume RGB (3 channels);
+# disable them when training/evaluating >3-channel imagery.
+kind: default
+inpainted_key: inpainted
+integral_kind: null
+ssim: true
+lpips: false
+fid: false
