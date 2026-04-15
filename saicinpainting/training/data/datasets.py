@@ -100,9 +100,9 @@ def _multichannel_hwc_to_uint8(img: np.ndarray) -> np.ndarray:
     if img.dtype == np.uint8:
         return img
     if img.dtype == np.uint16:
-        return np.clip(
-            img.astype(np.float32) * (255.0 / 65535.0), 0, 255
-        ).astype(np.uint8)
+        return np.clip(img.astype(np.float32) * (255.0 / 65535.0), 0, 255).astype(
+            np.uint8
+        )
     x = img.astype(np.float32)
     out = np.empty(x.shape, dtype=np.uint8)
     for c in range(x.shape[2]):
@@ -112,7 +112,9 @@ def _multichannel_hwc_to_uint8(img: np.ndarray) -> np.ndarray:
         if hi <= 1.0 + 1e-5:
             out[:, :, c] = np.clip(np.round(ch * 255.0), 0, 255).astype(np.uint8)
         elif hi > lo:
-            out[:, :, c] = np.clip((ch - lo) / (hi - lo) * 255.0, 0, 255).astype(np.uint8)
+            out[:, :, c] = np.clip((ch - lo) / (hi - lo) * 255.0, 0, 255).astype(
+                np.uint8
+            )
         else:
             out[:, :, c] = 0
     return out
@@ -527,43 +529,42 @@ def get_transforms(transform_variant, out_size):
         # No CLAHE (uint8-only) or HueSaturation (RGB-only); safe for H×W×8 and similar.
         transform = A.Compose(
             [
-                A.PadIfNeeded(min_height=out_size, min_width=out_size),
-                A.RandomCrop(height=out_size, width=out_size),
                 A.HorizontalFlip(),
+                A.VerticalFlip(),
                 A.RandomBrightnessContrast(brightness_limit=0.2, contrast_limit=0.2),
                 A.ToFloat(),
             ]
         )
-    elif transform_variant in ("distortions_light", "light_distortions"):
-        # satellite_256.yaml historically used the mis-spelled alias "light_distortions"
-        transform = A.Compose(
-            [
-                IAAPerspective2(scale=(0.0, 0.02)),
-                IAAAffine2(scale=(0.8, 1.8), rotate=(-20, 20), shear=(-0.03, 0.03)),
-                A.PadIfNeeded(min_height=out_size, min_width=out_size),
-                A.RandomCrop(height=out_size, width=out_size),
-                A.HorizontalFlip(),
-                A.CLAHE(),
-                A.RandomBrightnessContrast(brightness_limit=0.2, contrast_limit=0.2),
-                A.HueSaturationValue(
-                    hue_shift_limit=5, sat_shift_limit=30, val_shift_limit=5
-                ),
-                A.ToFloat(),
-            ]
-        )
-    elif transform_variant == "non_space_transform":
-        transform = A.Compose(
-            [
-                A.CLAHE(),
-                A.RandomBrightnessContrast(brightness_limit=0.2, contrast_limit=0.2),
-                A.HueSaturationValue(
-                    hue_shift_limit=5, sat_shift_limit=30, val_shift_limit=5
-                ),
-                A.ToFloat(),
-            ]
-        )
-    elif transform_variant == "no_augs":
-        transform = A.Compose([A.ToFloat()])
+    # elif transform_variant in ("distortions_light", "light_distortions"):
+    #     # satellite_256.yaml historically used the mis-spelled alias "light_distortions"
+    #     transform = A.Compose(
+    #         [
+    #             IAAPerspective2(scale=(0.0, 0.02)),
+    #             IAAAffine2(scale=(0.8, 1.8), rotate=(-20, 20), shear=(-0.03, 0.03)),
+    #             A.PadIfNeeded(min_height=out_size, min_width=out_size),
+    #             A.RandomCrop(height=out_size, width=out_size),
+    #             A.HorizontalFlip(),
+    #             A.CLAHE(),
+    #             A.RandomBrightnessContrast(brightness_limit=0.2, contrast_limit=0.2),
+    #             A.HueSaturationValue(
+    #                 hue_shift_limit=5, sat_shift_limit=30, val_shift_limit=5
+    #             ),
+    #             A.ToFloat(),
+    #         ]
+    #     )
+    # elif transform_variant == "non_space_transform":
+    #     transform = A.Compose(
+    #         [
+    #             A.CLAHE(),
+    #             A.RandomBrightnessContrast(brightness_limit=0.2, contrast_limit=0.2),
+    #             A.HueSaturationValue(
+    #                 hue_shift_limit=5, sat_shift_limit=30, val_shift_limit=5
+    #             ),
+    #             A.ToFloat(),
+    #         ]
+    #     )
+    # elif transform_variant == "no_augs":
+    #     transform = A.Compose([A.ToFloat()])
     else:
         raise ValueError(f"Unexpected transform_variant {transform_variant}")
     return transform
