@@ -4,6 +4,8 @@ run_title: "LaMa FFC for 8-channel satellites"
 training_model:
   kind: default
   concat_mask: true
+  # Required for default directory visualizer (discr_output_* in key_order); matches lama-fourier.yaml
+  store_discr_outputs_for_vis: true
 
 losses:
   l1:

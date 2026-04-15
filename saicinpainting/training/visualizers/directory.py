@@ -21,9 +21,20 @@ class DirectoryVisualizer(BaseVisualizer):
 
     def __call__(self, epoch_i, batch_i, batch, suffix='', rank=None):
         check_and_warn_input_range(batch['image'], 0, 1, 'DirectoryVisualizer target image')
-        vis_img = visualize_mask_and_images_batch(batch, self.key_order, max_items=self.max_items_in_batch,
-                                                  last_without_mask=self.last_without_mask,
-                                                  rescale_keys=self.rescale_keys)
+        # key_order may list discr_* tensors; those exist only if training_model.store_discr_outputs_for_vis
+        keys = [k for k in self.key_order if k in batch]
+        rescale = (
+            [k for k in (self.rescale_keys or []) if k in batch]
+            if self.rescale_keys
+            else None
+        )
+        vis_img = visualize_mask_and_images_batch(
+            batch,
+            keys,
+            max_items=self.max_items_in_batch,
+            last_without_mask=self.last_without_mask,
+            rescale_keys=rescale,
+        )
 
         vis_img = np.clip(vis_img * 255, 0, 255).astype('uint8')
 
