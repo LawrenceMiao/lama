@@ -55,6 +55,15 @@ def _resolve_user_data_path(path):
     return os.path.normpath(os.path.join(base, p))
 
 
+def _load_npy(path):
+    """
+    Load a .npy file. NumPy defaults to allow_pickle=False, which rejects files that use
+    pickled/object dtypes (common with older saves or non-array payloads mis-saved as .npy).
+    Training data paths are trusted local files.
+    """
+    return np.load(path, allow_pickle=True)
+
+
 class InpaintingTrainDataset(Dataset):
     def __init__(self, indir, mask_generator, transform):
         self.in_files = list(
@@ -173,7 +182,7 @@ class MultiChannelInpaintingTrainDataset(Dataset):
 
         # Read multi-channel image (supports .tif, .png, .npy)
         if path.endswith(".npy"):
-            img = np.load(path)  # Shape: (H, W, C)
+            img = _load_npy(path)  # Shape: (H, W, C)
         else:
             # Use rasterio or PIL for multi-channel GeoTIFFs
             img = cv2.imread(path, cv2.IMREAD_UNCHANGED)
@@ -317,7 +326,7 @@ class MultiChannelInpaintingEvalDataset(Dataset):
 
     def _load_multichannel_image(self, path):
         if path.endswith(".npy"):
-            img = np.load(path)
+            img = _load_npy(path)
         else:
             img = cv2.imread(path, cv2.IMREAD_UNCHANGED)
 
@@ -340,7 +349,7 @@ class MultiChannelInpaintingEvalDataset(Dataset):
 
     def _load_mask_gray(self, path):
         if path.endswith(".npy"):
-            m = np.load(path)
+            m = _load_npy(path)
             if m.ndim == 3:
                 m = m[..., 0]
             m = m.astype(np.float32)
