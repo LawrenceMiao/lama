@@ -1,0 +1,32 @@
+# @package _group_
+# Same as any_gpu_large_ssim_ddp_final, but validation timing works with **small** train loaders.
+#
+# The default trainer sets val_check_interval: ${trainer.kwargs.limit_train_batches} (25000).
+# PyTorch Lightning requires val_check_interval (when an int = "every N batches") to be <= batches
+# per epoch. Tiny datasets (e.g. 2 batches/epoch) then fail with:
+#   val_check_interval (25000) must be <= number of training batches (2)
+#
+# Using val_check_interval: 1.0 runs validation **once per training epoch** (fraction = 100% of epoch).
+kwargs:
+  gpus: -1
+  accelerator: ddp
+  max_epochs: 40
+  gradient_clip_val: 1
+  log_gpu_memory: None
+  limit_train_batches: 25000
+  val_check_interval: 1.0
+  log_every_n_steps: 250
+  precision: 32
+  terminate_on_nan: False
+  check_val_every_n_epoch: 1
+  num_sanity_val_steps: 8
+  replace_sampler_ddp: False
+
+checkpoint_kwargs:
+  verbose: True
+  save_top_k: 5
+  save_last: True
+  period: 1
+  # default_inpainted logs val_ssim_fid100_f1_*; satellite_multichannel has no FID integral — use SSIM
+  monitor: val_ssim_total_mean
+  mode: max

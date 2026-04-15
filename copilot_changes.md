@@ -57,6 +57,14 @@ Summary of edits made to support **8-channel (e.g. 256×256×8 `.npy`)** trainin
 ## `configs/training/lama-fourier-satellite.yaml`
 
 - **`defaults` → evaluator:** `default_inpainted` replaced with **`satellite_multichannel`** so satellite runs use the multichannel-safe evaluator by default.
+- **`defaults` → trainer:** `any_gpu_large_ssim_ddp_final` replaced with **`any_gpu_large_ssim_ddp_satellite`** (see below).
+
+---
+
+## `configs/training/trainer/any_gpu_large_ssim_ddp_satellite.yaml` (new)
+
+- **`val_check_interval: 1.0`** (fraction of each training epoch) instead of **`${trainer.kwargs.limit_train_batches}`** (25000). PyTorch Lightning requires an **integer** `val_check_interval` to be **≤** the number of training batches per epoch; tiny datasets (e.g. 2 batches) fail if it stays 25000.
+- **`checkpoint_kwargs.monitor`:** **`val_ssim_total_mean`** instead of **`val_ssim_fid100_f1_total_mean`**, because **`satellite_multichannel`** does not compute the FID-based integral metric.
 
 ---
 

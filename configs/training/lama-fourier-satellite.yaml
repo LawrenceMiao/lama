@@ -29,4 +29,4 @@ defaults:
   - optimizers: default_optimizers
   - visualizer: directory
   - evaluator: satellite_multichannel
-  - trainer: any_gpu_large_ssim_ddp_final
+  - trainer: any_gpu_large_ssim_ddp_satellite
