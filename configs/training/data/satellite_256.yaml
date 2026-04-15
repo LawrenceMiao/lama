@@ -28,7 +28,7 @@ train:
     # Probabilities are automatically normalized, don't need to sum to 1
 
     # Irregular masks (random stroke-like masks)
-    irregular_proba: 1/3
+    irregular_proba: 0.5
     irregular_kwargs:
       max_angle: 4
       max_len: 200 # Max stroke length
@@ -45,8 +45,8 @@ train:
       max_times: 4 # Max number of boxes
       min_times: 1
 
-    # Segmentation-based masks (optional, set to 0 if no semantic segmentation)
-    segm_proba: 1/3
+    # Segmentation-based masks require detectron2 (SegmentationMask). Off by default for satellite.
+    segm_proba: 0
     segm_kwargs:
       confidence_threshold: 0.5
 

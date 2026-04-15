@@ -76,6 +76,9 @@ Summary of edits made to support **8-channel (e.g. 256×256×8 `.npy`)** trainin
 - **`MixedMaskGenerator.__init__`**  
   Coerces **`irregular_proba`**, **`box_proba`**, **`segm_proba`**, **`squares_proba`**, **`superres_proba`**, **`outpainting_proba`**, and **`invert_proba`** with **`_to_mask_proba_float`** before use.
 
+- **Detectron2 / `SegmentationMask`**  
+  If **`segm_proba > 0`** but **`DETECTRON_INSTALLED`** is false (no detectron2), **`segm_proba` is forced to 0** and a **warning** is logged. **`RandomSegmentationMaskGenerator`** only builds **`SegmentationMask` on first `__call__`**, so training could still crash if segm was selected without this guard.
+
 ---
 
 ## `saicinpainting/training/data/datasets.py` (multichannel aug + transform alias)
@@ -95,6 +98,8 @@ Summary of edits made to support **8-channel (e.g. 256×256×8 `.npy`)** trainin
 ## `configs/training/data/satellite_256.yaml`
 
 - **`train.transform_variant`:** **`multichannel_light`** (replaces **`light_distortions`**) so satellite training matches the multi-channel-safe augment list above.
+
+- **Mask mix:** **`segm_proba: 0`** (segmentation masks need **detectron2**). **`irregular_proba` / `box_proba`:** **`0.5` / `0.5`** (normalized to 50/50 stroke vs box masks).
 
 ---
 

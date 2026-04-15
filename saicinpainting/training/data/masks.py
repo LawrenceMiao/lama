@@ -7,7 +7,7 @@ from enum import Enum
 import cv2
 import numpy as np
 
-from saicinpainting.evaluation.masks.mask import SegmentationMask
+from saicinpainting.evaluation.masks.mask import DETECTRON_INSTALLED, SegmentationMask
 from saicinpainting.utils import LinearRamp
 
 LOGGER = logging.getLogger(__name__)
@@ -278,6 +278,13 @@ class MixedMaskGenerator:
         irregular_proba = _to_mask_proba_float(irregular_proba)
         box_proba = _to_mask_proba_float(box_proba)
         segm_proba = _to_mask_proba_float(segm_proba)
+        if segm_proba > 0 and not DETECTRON_INSTALLED:
+            LOGGER.warning(
+                "segm_proba=%s ignored: detectron2 is not installed. "
+                "Use irregular/box masks only, or install detectron2 for SegmentationMask.",
+                segm_proba,
+            )
+            segm_proba = 0.0
         squares_proba = _to_mask_proba_float(squares_proba)
         superres_proba = _to_mask_proba_float(superres_proba)
         outpainting_proba = _to_mask_proba_float(outpainting_proba)
