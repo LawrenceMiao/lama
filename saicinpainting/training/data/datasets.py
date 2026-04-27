@@ -226,7 +226,7 @@ class MultiChannelInpaintingTrainDataset(Dataset):
     """Dataset for multi-channel satellite/hyperspectral images"""
 
     def __init__(
-        self, indir, mask_generator, transform, n_channels=6, max_pixel_value=None
+        self, indir, mask_generator, transform, n_channels=3, max_pixel_value=None
     ):
         self.in_files = (
             list(glob.glob(os.path.join(indir, "**", "*.tif"), recursive=True))
@@ -286,7 +286,7 @@ class MultiChannelInpaintingEvalDataset(Dataset):
         self,
         datadir,
         img_suffix=".npy",
-        n_channels=6,
+        n_channels=3,
         max_pixel_value=None,
         pad_out_to_modulo=None,
         scale_factor=None,
@@ -546,7 +546,7 @@ def get_transforms(transform_variant, out_size):
             ]
         )
     elif transform_variant in ("multichannel_light", "satellite_multichannel"):
-        # No CLAHE (uint8-only) or HueSaturation (RGB-only); safe for H×W×6 and similar.
+        # No CLAHE (uint8-only) or HueSaturation (RGB-only); safe for H×W×3 and similar.
         transform = A.Compose(
             [
                 A.HorizontalFlip(),
@@ -634,7 +634,7 @@ def make_default_train_dataloader(
             indir=indir,
             mask_generator=mask_generator,
             transform=transform,
-            n_channels=kwargs.get("n_channels", 6),
+            n_channels=kwargs.get("n_channels", 3),
             max_pixel_value=kwargs.get("max_pixel_value"),
         )
     else:

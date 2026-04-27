@@ -1,6 +1,6 @@
 # Copilot / assistant changes (multichannel satellite + Hydra paths)
 
-Summary of edits made to support **6-channel (e.g. 256×256×6 `.npy`)** training and to fix validation path and metric issues when using **Hydra** and **relative `./scratch/...` paths**.
+Summary of edits made to support **3-channel (e.g. 256×256×3 `.npy`)** training and to fix validation path and metric issues when using **Hydra** and **relative `./scratch/...` paths**.
 
 ---
 
@@ -50,7 +50,7 @@ Summary of edits made to support **6-channel (e.g. 256×256×6 `.npy`)** trainin
 ## `configs/training/evaluator/satellite_multichannel.yaml` (new)
 
 - Evaluator preset for **>3 channels**: **`ssim: true`**, **`lpips: false`**, **`fid: false`**, **`integral_kind: null`**.  
-  Default LPIPS/FID assume **RGB (3 channels)**; they caused **6 vs 3** channel errors during validation.
+  Default LPIPS/FID assume **RGB (3 channels)**; this preset remains available for non-RGB multichannel runs.
 
 ---
 
@@ -85,7 +85,7 @@ Summary of edits made to support **6-channel (e.g. 256×256×6 `.npy`)** trainin
 
 - **`get_transforms`**  
   - Accepts **`light_distortions`** as an alias of **`distortions_light`** (RGB-oriented: CLAHE, HSV, imgaug).  
-  - **`multichannel_light`** / **`satellite_multichannel`:** Pad/Crop/Flip/Brightness/**`ToFloat` only** — no **CLAHE** (requires **uint8**) and no **HueSaturationValue** (RGB-oriented), suitable for **6-channel** training.
+  - **`multichannel_light`** / **`satellite_multichannel`:** Pad/Crop/Flip/Brightness/**`ToFloat` only** — no **CLAHE** (requires **uint8**) and no **HueSaturationValue** (RGB-oriented), suitable for fixed-mask `.npy` training.
 
 - **`_multichannel_hwc_to_uint8()`**  
   Converts loaded multi-spectral arrays to **uint8** per channel before augment (stretch \([0,1]\) floats, scale **uint16**, min–max per channel otherwise) so pipelines that need **uint8** stay valid if extended later.
@@ -108,4 +108,4 @@ Summary of edits made to support **6-channel (e.g. 256×256×6 `.npy`)** trainin
 - **Relative paths:** If you do not sync the `datasets.py` resolver, you can still pass **absolute** `data.val.indir` / `data.train.indir` on the CLI.
 - **Val layout:** Each val sample needs an image file plus a mask (e.g. `image1.npy` + `image1_mask.png` in the same folder), or the pairing rules above.
 - **Mask probabilities in YAML:** Prefer decimals (**`0.333333`**) or rely on **`_to_mask_proba_float`** after the **`masks.py`** fix.
-- **Multichannel + `light_distortions`:** If you override back to **`light_distortions`**, keep inputs **uint8** and expect **RGB-oriented** ops; for **6 bands**, prefer **`multichannel_light`**.
+- **Multichannel + `light_distortions`:** If you override back to **`light_distortions`**, keep inputs **uint8** and expect **RGB-oriented** ops.

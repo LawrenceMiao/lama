@@ -1,5 +1,5 @@
 # configs/training/lama-fourier-satellite.yaml
-run_title: "LaMa FFC for 6-channel satellites"
+run_title: "LaMa FFC for 3-channel satellites"
 
 training_model:
   kind: default

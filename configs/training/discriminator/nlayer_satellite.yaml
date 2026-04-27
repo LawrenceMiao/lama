@@ -1,5 +1,5 @@
 # configs/training/discriminator/nlayer_satellite.yaml
 kind: pix2pixhd_nlayer
-input_nc: 6 # 6 bands
+input_nc: 3 # 3 bands
 ndf: 64
 n_layers: 4
