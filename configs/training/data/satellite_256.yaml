@@ -19,6 +19,7 @@ train:
   # Dataset type - use multichannel for 6-band images
   kind: multichannel
   n_channels: 6
+  max_pixel_value: 4095 # 12-bit integer range
 
   # Image file extension (.tif for geospatial, .png, or .npy for NumPy arrays)
   img_suffix: .npy
@@ -48,6 +49,7 @@ val:
 
   kind: multichannel
   n_channels: 6
+  max_pixel_value: 4095 # 12-bit integer range
   out_size: 256
 
   # For validation, use pre-generated fixed masks (unlike training which generates random ones)
@@ -66,6 +68,7 @@ visual_test:
   indir: ${location.data_root_dir}/visual_test
   kind: multichannel
   n_channels: 6
+  max_pixel_value: 4095 # 12-bit integer range
   img_suffix: .npy
   dataloader_kwargs:
     batch_size: ${data.val_batch_size}
@@ -77,6 +80,7 @@ eval:
   indir: ${location.data_root_dir}/eval
   kind: multichannel
   n_channels: 6
+  max_pixel_value: 4095 # 12-bit integer range
   img_suffix: .npy
   dataloader_kwargs:
     batch_size: ${data.val_batch_size}

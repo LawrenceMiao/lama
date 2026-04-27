@@ -91,12 +91,19 @@ def _load_npy(path):
     return np.asarray(data, dtype=np.float32)
 
 
-def _multichannel_hwc_to_uint8(img: np.ndarray) -> np.ndarray:
+def _multichannel_hwc_to_uint8(img: np.ndarray, max_pixel_value=None) -> np.ndarray:
     """
     Albumentations CLAHE / HueSaturation expect uint8 RGB-style pipelines; multi-channel
-    training uses a separate transform list. This converts H×W×C arrays to uint8 for aug
-    (Pad/Crop/Flip/Brightness + ToFloat).
+    training uses a separate transform list. When the source range is known, keep float32
+    precision in [0, 1]; otherwise fall back to the historical uint8 conversion.
     """
+    if max_pixel_value is not None:
+        if max_pixel_value <= 0:
+            raise ValueError(f"max_pixel_value must be positive, got {max_pixel_value}")
+        return np.clip(
+            img.astype(np.float32) / float(max_pixel_value), 0.0, 1.0
+        ).astype(np.float32)
+
     if img.dtype == np.uint8:
         return img
     if img.dtype == np.uint16:
@@ -218,7 +225,9 @@ class ImgSegmentationDataset(Dataset):
 class MultiChannelInpaintingTrainDataset(Dataset):
     """Dataset for multi-channel satellite/hyperspectral images"""
 
-    def __init__(self, indir, mask_generator, transform, n_channels=6):
+    def __init__(
+        self, indir, mask_generator, transform, n_channels=6, max_pixel_value=None
+    ):
         self.in_files = (
             list(glob.glob(os.path.join(indir, "**", "*.tif"), recursive=True))
             + list(glob.glob(os.path.join(indir, "**", "*.png"), recursive=True))
@@ -228,6 +237,7 @@ class MultiChannelInpaintingTrainDataset(Dataset):
         self.transform = transform
         self.iter_i = 0
         self.n_channels = n_channels
+        self.max_pixel_value = max_pixel_value
 
     def __len__(self):
         return len(self.in_files)
@@ -256,7 +266,7 @@ class MultiChannelInpaintingTrainDataset(Dataset):
 
         # Albumentations (CLAHE, HSV, etc.) expect uint8 for typical RGB pipelines; use
         # transform_variant multichannel_light / satellite_multichannel — then ToFloat().
-        img = _multichannel_hwc_to_uint8(img)
+        img = _multichannel_hwc_to_uint8(img, max_pixel_value=self.max_pixel_value)
 
         # Apply augmentations
         img = self.transform(image=img)["image"]
@@ -277,6 +287,7 @@ class MultiChannelInpaintingEvalDataset(Dataset):
         datadir,
         img_suffix=".npy",
         n_channels=6,
+        max_pixel_value=None,
         pad_out_to_modulo=None,
         scale_factor=None,
         mask_subdir=None,
@@ -287,6 +298,7 @@ class MultiChannelInpaintingEvalDataset(Dataset):
             img_suffix if str(img_suffix).startswith(".") else f".{img_suffix}"
         )
         self.n_channels = n_channels
+        self.max_pixel_value = max_pixel_value
         self.pad_out_to_modulo = pad_out_to_modulo
         self.scale_factor = scale_factor
         self.mask_subdir = mask_subdir
@@ -393,7 +405,15 @@ class MultiChannelInpaintingEvalDataset(Dataset):
                 pad = self.n_channels - img.shape[2]
                 img = np.pad(img, ((0, 0), (0, 0), (0, pad)), mode="constant")
 
-        if img.dtype != np.float32:
+        if self.max_pixel_value is not None:
+            if self.max_pixel_value <= 0:
+                raise ValueError(
+                    f"max_pixel_value must be positive, got {self.max_pixel_value}"
+                )
+            img = np.clip(
+                img.astype(np.float32) / float(self.max_pixel_value), 0.0, 1.0
+            )
+        elif img.dtype != np.float32:
             img = (
                 img.astype(np.float32) / 255.0
                 if np.max(img) > 1
@@ -615,6 +635,7 @@ def make_default_train_dataloader(
             mask_generator=mask_generator,
             transform=transform,
             n_channels=kwargs.get("n_channels", 6),
+            max_pixel_value=kwargs.get("max_pixel_value"),
         )
     else:
         raise ValueError(f"Unknown train dataset kind {kind}")
