@@ -2,8 +2,8 @@
 # @package _group_
 
 # Batch sizes - adjust based on GPU memory
-# For 8-channel images: use smaller batches than RGB
-batch_size: 8 # 8-channel needs more VRAM than 3-channel
+# For 6-channel images: use smaller batches than RGB
+batch_size: 8 # 6-channel needs more VRAM than 3-channel
 val_batch_size: 4 # Validation can be smaller
 num_workers: 4 # Parallel data loading (4-8 recommended)
 
@@ -16,9 +16,9 @@ train:
   # Image size for training (256x256 for your satellite patches)
   out_size: 256
 
-  # Dataset type - use multichannel for 8-band images
+  # Dataset type - use multichannel for 6-band images
   kind: multichannel
-  n_channels: 8
+  n_channels: 6
 
   # Image file extension (.tif for geospatial, .png, or .npy for NumPy arrays)
   img_suffix: .npy
@@ -51,7 +51,7 @@ train:
       confidence_threshold: 0.5
 
   # Augmentation type
-  # Use multichannel_light for 8-channel data (CLAHE/HSV in light_distortions need uint8 RGB).
+  # Use multichannel_light for 6-channel data (CLAHE/HSV in light_distortions need uint8 RGB).
   # Options include: no_augs, multichannel_light, distortions_light (RGB-oriented)
   transform_variant: multichannel_light
 
@@ -68,7 +68,7 @@ val:
   indir: ${location.data_root_dir}/val
 
   kind: multichannel
-  n_channels: 8
+  n_channels: 6
   out_size: 256
 
   # For validation, use pre-generated fixed masks (unlike training which generates random ones)
@@ -86,7 +86,7 @@ visual_test:
   # Optional: Visual inspection set (100+ images)
   indir: ${location.data_root_dir}/visual_test
   kind: multichannel
-  n_channels: 8
+  n_channels: 6
   img_suffix: .npy
   dataloader_kwargs:
     batch_size: ${data.val_batch_size}
@@ -97,7 +97,7 @@ eval:
   # Optional: Evaluation set for final metrics
   indir: ${location.data_root_dir}/eval
   kind: multichannel
-  n_channels: 8
+  n_channels: 6
   img_suffix: .npy
   dataloader_kwargs:
     batch_size: ${data.val_batch_size}

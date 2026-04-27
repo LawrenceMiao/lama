@@ -1,7 +1,7 @@
 # configs/training/generator/ffc_resnet_satellite.yaml
 kind: ffc_resnet
-input_nc: 9 # 8 bands + 1 mask
-output_nc: 8 # 8 bands output
+input_nc: 7 # 6 bands + 1 mask
+output_nc: 6 # 6 bands output
 ngf: 64
 n_downsampling: 3
 n_blocks: 9
