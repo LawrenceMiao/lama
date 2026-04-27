@@ -10,15 +10,14 @@ training_model:
 losses:
   l1:
     weight_missing: 10
-    weight_known: 1
+    weight_known: 10
   perceptual:
     weight: 0 # Disabled for multi-channel
   adversarial:
     kind: r1
-    weight: 1
-    gp_coef: 0.001
-  feature_matching:
     weight: 10
+  feature_matching:
+    weight: 100
   resnet_pl:
     weight: 0 # Disabled for multi-channel
 
