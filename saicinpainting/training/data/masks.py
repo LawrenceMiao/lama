@@ -1,7 +1,9 @@
 import math
 import random
 import hashlib
+import importlib
 import logging
+import os
 from enum import Enum
 
 import cv2
@@ -29,6 +31,19 @@ def _to_mask_proba_float(v):
             return float(num) / float(den)
         return float(s)
     return float(v)
+
+
+def _resolve_user_path(path):
+    """Resolve paths against Hydra's original working directory when available."""
+    p = os.path.expanduser(str(path))
+    if os.path.isabs(p):
+        return os.path.normpath(p)
+    try:
+        hydra_utils = importlib.import_module("hydra.utils")
+        base = hydra_utils.get_original_cwd()
+    except Exception:
+        base = os.getcwd()
+    return os.path.normpath(os.path.join(base, p))
 
 
 class DrawMethod(Enum):
@@ -157,6 +172,28 @@ class RandomSuperresMaskGenerator:
 
     def __call__(self, img, iter_i=None):
         return make_random_superres_mask(img.shape[1:], **self.kwargs)
+
+
+class FixedImageMaskGenerator:
+    def __init__(self, path, threshold=127):
+        self.path = _resolve_user_path(path)
+        self.threshold = threshold
+        mask_img = cv2.imread(self.path, cv2.IMREAD_GRAYSCALE)
+        if mask_img is None:
+            raise FileNotFoundError(f"Could not read fixed mask image: {self.path}")
+        mask = np.asarray(mask_img, dtype=np.uint8)
+        self.mask = (mask > self.threshold).astype(np.float32)
+
+    def __call__(self, img, iter_i=None, raw_image=None):
+        height, width = img.shape[1:]
+        mask = self.mask
+        if mask.shape != (height, width):
+            mask = np.asarray(
+                cv2.resize(mask, (width, height), interpolation=cv2.INTER_NEAREST),
+                dtype=np.float32,
+            )
+            mask = np.rint(mask).astype(np.float32)
+        return mask[None, ...]
 
 
 class DumbAreaMaskGenerator:
@@ -360,6 +397,8 @@ def get_mask_generator(kind, kwargs):
         cl = OutpaintingMaskGenerator
     elif kind == "dumb":
         cl = DumbAreaMaskGenerator
+    elif kind == "fixed":
+        cl = FixedImageMaskGenerator
     else:
         raise NotImplementedError(f"No such generator kind = {kind}")
     return cl(**kwargs)
