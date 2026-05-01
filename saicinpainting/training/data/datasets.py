@@ -685,9 +685,17 @@ def make_default_val_dataset(
         transform = get_transforms(transform_variant, out_size)
 
     if kind == "default":
-        dataset = InpaintingEvaluationDataset(indir, **kwargs)
+        dataset_kwargs = dict(kwargs)
+        dataset_kwargs.pop("n_channels", None)
+        dataset_kwargs.pop("max_pixel_value", None)
+        dataset_kwargs.pop("mask_subdir", None)
+        dataset = InpaintingEvaluationDataset(indir, **dataset_kwargs)
     elif kind == "our_eval":
-        dataset = OurInpaintingEvaluationDataset(indir, **kwargs)
+        dataset_kwargs = dict(kwargs)
+        dataset_kwargs.pop("n_channels", None)
+        dataset_kwargs.pop("max_pixel_value", None)
+        dataset_kwargs.pop("mask_subdir", None)
+        dataset = OurInpaintingEvaluationDataset(indir, **dataset_kwargs)
     elif kind == "img_with_segm":
         dataset = ImgSegmentationDataset(
             indir=indir,
